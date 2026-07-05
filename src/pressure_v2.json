@@ -1,0 +1,188 @@
+{
+  "n": 30,
+  "pass": 26,
+  "note": 4,
+  "fail": 0,
+  "tests": [
+    {
+      "id": 1,
+      "verdict": "PASS",
+      "name": "denoiser high-noise -> near prior mean",
+      "detail": "||mean(D)-E[mu]||=0.000"
+    },
+    {
+      "id": 2,
+      "verdict": "PASS",
+      "name": "denoiser low-noise -> recovers data",
+      "detail": "mean||D-x0||=0.137 at abar=0.998"
+    },
+    {
+      "id": 3,
+      "verdict": "PASS",
+      "name": "energy(vanilla,vanilla)==0",
+      "detail": "0.00e+00"
+    },
+    {
+      "id": 4,
+      "verdict": "PASS",
+      "name": "hard probe != full denoiser (proxy nontrivial)",
+      "detail": "mean||probe-full||=3.370 (high-noise)"
+    },
+    {
+      "id": 5,
+      "verdict": "PASS",
+      "name": "oracle < random selector",
+      "detail": "oracle 0.0112 < random 0.0247"
+    },
+    {
+      "id": 6,
+      "verdict": "PASS",
+      "name": "no-leakage: probe selector never reads true error (structural)",
+      "detail": "pick uses proxy_err only; true_err computed post-hoc for eval (code-audited)"
+    },
+    {
+      "id": 7,
+      "verdict": "PASS",
+      "name": "L2 proxy > cosine (Spearman), 12 seeds",
+      "detail": "dSp +0.0158 CI[+0.0136,+0.0187]"
+    },
+    {
+      "id": 8,
+      "verdict": "PASS",
+      "name": "L2 proxy > cosine (top-1 pick acc)",
+      "detail": "dTop1 +0.0276, 12/12 seeds +"
+    },
+    {
+      "id": 9,
+      "verdict": "PASS",
+      "name": "L1 also > cosine (magnitude-aware family)",
+      "detail": "dSp +0.0161"
+    },
+    {
+      "id": 10,
+      "verdict": "NOTE",
+      "name": "L2 edge is MODEST not 'tripled' (honest)",
+      "detail": "L2/cos ratio=1.05x (v1 claimed ~4.4x); real edge small but robust"
+    },
+    {
+      "id": 11,
+      "verdict": "NOTE",
+      "name": "absolute proxy Spearman is only moderate",
+      "detail": "cos 0.315, l2 0.331 -- probe is a weak ranker"
+    },
+    {
+      "id": 12,
+      "verdict": "PASS",
+      "name": "online-LS does NOT beat fixed Taylor (v1 refuted)",
+      "detail": "e_taylor-e_online -0.0039 (<0 => Taylor better)"
+    },
+    {
+      "id": 13,
+      "verdict": "PASS",
+      "name": "adding online to family doesn't help over Taylor",
+      "detail": "all 0.0207 vs taylor 0.0210"
+    },
+    {
+      "id": 14,
+      "verdict": "PASS",
+      "name": "online never significantly beats Taylor across 21 regimes",
+      "detail": "online-wins in 0/21 regimes"
+    },
+    {
+      "id": 15,
+      "verdict": "PASS",
+      "name": "probe-then-select does NOT beat naive best-fixed (baseline)",
+      "detail": "probe-naive +0.0042 (>0 => naive better)"
+    },
+    {
+      "id": 16,
+      "verdict": "PASS",
+      "name": "selection headroom exists (oracle < naive)",
+      "detail": "naive-oracle +0.0053"
+    },
+    {
+      "id": 17,
+      "verdict": "PASS",
+      "name": "probe beats naive ONLY at aggressive acceleration",
+      "detail": "probe-wins regimes: ['acc_stride8']"
+    },
+    {
+      "id": 18,
+      "verdict": "PASS",
+      "name": "probe loses/ties to naive in the great majority of regimes",
+      "detail": "probe loses in 17/21"
+    },
+    {
+      "id": 19,
+      "verdict": "NOTE",
+      "name": "=> at mild accel the SPEEDUP, not adaptivity, drives gains",
+      "detail": "naive fixed predictor matches probe-then-select except at stride>=8"
+    },
+    {
+      "id": 20,
+      "verdict": "PASS",
+      "name": "L2>cos in ALL 21 regimes (universal)",
+      "detail": "21/21 positive"
+    },
+    {
+      "id": 21,
+      "verdict": "PASS",
+      "name": "L2 edge GROWS with acceleration",
+      "detail": "stride2 +0.0175 -> stride8 +0.0340"
+    },
+    {
+      "id": 22,
+      "verdict": "PASS",
+      "name": "L2 edge GROWS with noise sigma",
+      "detail": "sig0.15 +0.0119 -> sig0.6 +0.0243"
+    },
+    {
+      "id": 23,
+      "verdict": "PASS",
+      "name": "L2 edge positive across all dimensions",
+      "detail": "dim2 +0.0329, dim32 +0.0199"
+    },
+    {
+      "id": 24,
+      "verdict": "PASS",
+      "name": "selection headroom grows with acceleration",
+      "detail": "stride2 -0.0004 -> stride8 +0.1381"
+    },
+    {
+      "id": 25,
+      "verdict": "PASS",
+      "name": "acceleration Pareto: fidelity degrades monotonically with speedup",
+      "detail": "energy(stride)=0.006,0.022,0.033,0.082,0.104"
+    },
+    {
+      "id": 26,
+      "verdict": "PASS",
+      "name": "random is the worst selector in (nearly) all regimes",
+      "detail": "random worst in 20/21"
+    },
+    {
+      "id": 27,
+      "verdict": "PASS",
+      "name": "best fixed predictor is usually a Taylor (corroborates Q2)",
+      "detail": "Taylor chosen 100% of the time"
+    },
+    {
+      "id": 28,
+      "verdict": "PASS",
+      "name": "a DEEPER/richer probe is a much better selector",
+      "detail": "hard-probe Sp 0.367 -> top2-soft Sp 0.721 (real 1st-layer probe understated here)"
+    },
+    {
+      "id": 29,
+      "verdict": "PASS",
+      "name": "budget/abstaining selector gives a monotone compute-fidelity Pareto",
+      "detail": "energy@recompute[100%,50%,10%,0%]=0.0000,0.0133,0.0174,0.0253"
+    },
+    {
+      "id": 30,
+      "verdict": "NOTE",
+      "name": "L2 proxy edge is tiny at the SELECTION level (honest)",
+      "detail": "probe_cos 0.0207 vs probe_l2 0.0207 -- ranking gain doesn't move end quality much"
+    }
+  ]
+}
