@@ -8,6 +8,7 @@
 \usepackage[table,dvipsnames]{xcolor}
 \usepackage{microtype}
 \usepackage{caption}
+\usepackage{pifont}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,shapes.geometric}
 \usepackage[hidelinks]{hyperref}
@@ -21,19 +22,29 @@
 \setlength{\parskip}{0.15ex}
 \pagestyle{empty}
 
+% ---- palette (muted, publication-grade) ----
+\definecolor{cExpLn}{HTML}{C0452F}\definecolor{cExpBg}{HTML}{FBEAE5}
+\definecolor{cChpLn}{HTML}{2E6DA4}\definecolor{cChpBg}{HTML}{E6EFF8}
+\definecolor{cDecLn}{HTML}{3C8B57}\definecolor{cDecBg}{HTML}{E7F2EB}
+\definecolor{cAuxLn}{HTML}{8A8A8A}\definecolor{cAuxBg}{HTML}{F0F0F0}
+\definecolor{cStLn}{HTML}{45566A}\definecolor{cStBg}{HTML}{EDF1F5}
+\definecolor{cZone}{HTML}{F7F5EF}\definecolor{cZoneLn}{HTML}{CFC7B3}
 % ---- shared TikZ styles ----
 \tikzset{
-  blk/.style={rectangle, rounded corners=2pt, draw=black!70, line width=0.5pt,
-              align=center, inner sep=3.2pt, font=\scriptsize, fill=black!3},
-  exp/.style={blk, fill=Salmon!22, draw=Salmon!75!black},
-  chp/.style={blk, fill=SkyBlue!22, draw=SkyBlue!70!black},
-  sel/.style={blk, fill=YellowGreen!25, draw=OliveGreen!75!black},
-  orc/.style={blk, fill=black!6, draw=black!45, dashed},
-  stg/.style={rectangle, rounded corners=2pt, draw=black!65, line width=0.6pt,
-              align=center, inner sep=4pt, font=\scriptsize, fill=black!4},
-  ar/.style={-{Stealth[length=4pt]}, line width=0.5pt, draw=black!70},
-  arb/.style={-{Stealth[length=4pt]}, line width=0.5pt, draw=SkyBlue!60!black},
-  ard/.style={-{Stealth[length=4pt]}, line width=0.5pt, draw=black!45, dashed}
+  box/.style={rectangle, rounded corners=2.6pt, draw=black!70, line width=0.7pt,
+              align=center, inner sep=3.4pt, font=\scriptsize, minimum height=8.5mm},
+  exp/.style={box, fill=cExpBg, draw=cExpLn, text=black!88},
+  chp/.style={box, fill=cChpBg, draw=cChpLn, text=black!88},
+  dec/.style={box, fill=cDecBg, draw=cDecLn, text=black!88},
+  aux/.style={box, fill=cAuxBg, draw=cAuxLn, dashed, text=black!70},
+  st/.style={box, fill=cStBg, draw=cStLn},
+  cache/.style={box, fill=white, draw=black!45, densely dashed},
+  lgd/.style={draw, rounded corners=1.4pt, line width=0.7pt, minimum width=4.2mm, minimum height=2.6mm, inner sep=0pt},
+  a/.style={-{Stealth[length=4.6pt,width=3.6pt]}, line width=0.7pt, draw=black!72},
+  ax/.style={-{Stealth[length=4.6pt,width=3.6pt]}, line width=0.9pt, draw=cExpLn},
+  ac/.style={-{Stealth[length=4.6pt,width=3.6pt]}, line width=0.9pt, draw=cChpLn},
+  ad/.style={-{Stealth[length=4.2pt,width=3.2pt]}, line width=0.7pt, draw=cAuxLn, dashed},
+  loop/.style={-{Stealth[length=4.6pt,width=3.6pt]}, line width=0.7pt, draw=black!55, densely dotted}
 }
 
 \begin{document}
@@ -82,37 +93,52 @@ quantify that gap rather than hide it. All code and numbers are released.}
 
 % =========================== ARCHITECTURE DIAGRAM ===========================
 \begin{figure*}[t]\centering
-\begin{tikzpicture}[node distance=6.2mm and 8mm]
-% inputs
-\node[blk] (x0) {GMM prior\\$x_0\!\sim\!\sum_k w_k\mathcal N(\mu_k,\sigma^2 I)$};
-\node[blk, right=of x0] (xt) {forward VP\\noising $\to x_t$};
-% two branches
-\node[exp, above right=3mm and 10mm of xt] (D) {\textbf{exact denoiser} (expensive)\\$O_t=\mathbb E[x_0|x_t]$ (soft mix)};
-\node[chp, below right=3mm and 10mm of xt] (h) {\textbf{probe} (cheap)\\$h_t$: hard-assignment readout};
-% caches
-\node[exp, right=13mm of D] (cO) {anchor cache $\{O\}$};
-\node[chp, right=13mm of h] (ch) {anchor cache $\{h\}$};
-% predictor bank
-\node[blk, right=9mm of $(cO)!0.5!(ch)$] (bank) {\textbf{predictor bank} (8)\\Taylor $0$--$2$ $\;\cup\;$ online LS\\$\hat O_i,\ \hat h_i$ (extrapolate)};
-% proxy + select
-\node[sel, right=8mm of bank] (proxy) {proxy rank\\$d_\mu(\hat h_i,h_t)$\\$\mu\!\in\!\{\cos,L_2,L_1\}$};
-\node[sel, below=6mm of proxy] (sel) {select $\hat\imath=\arg\min_i d_\mu$\\use $\hat O_{\hat\imath}$};
-\node[orc, above=6mm of proxy] (orc) {\emph{oracle} (upper bnd)\\$\arg\min_i\|\hat O_i-O_t\|_2$};
-% DDIM
-\node[blk, below=10mm of bank] (ddim) {DDIM step $\to x_{t-1}$};
-% arrows
-\draw[ar](x0)--(xt);
-\draw[ar](xt.north east) to[out=25,in=180] (D.west);
-\draw[ar](xt.south east) to[out=-25,in=180] (h.west);
-\draw[ar](D)--(cO); \draw[arb](h)--(ch);
-\draw[ar](cO.east) to[out=0,in=150] (bank.north west);
-\draw[arb](ch.east) to[out=0,in=210] (bank.south west);
-\draw[ar](bank)--(proxy);
-\draw[ar](proxy)--(sel);
-\draw[ard](bank.north east) to[out=40,in=200] (orc.west);
-\draw[ar](sel.south) to[out=-90,in=0] (ddim.east);
-\draw[ar](ddim.west) to[out=180,in=-90] (xt.south);
-\end{tikzpicture}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm]
+% --- backdrop: the skipped-step prediction/selection region ---
+\begin{scope}[on background layer]
+  \fill[cZone,rounded corners=5pt] (5.55,-3.2) rectangle (16.0,4.15);
+  \draw[cZoneLn,rounded corners=5pt,line width=0.6pt] (5.55,-3.2) rectangle (16.0,4.15);
+  \node[cZoneLn,font=\scriptsize\itshape,anchor=north west] at (5.72,4.06) {skipped-step prediction \& selection};
+\end{scope}
+% --- nodes on a strict grid ---
+\node[st,text width=15mm] (xt) at (0,0) {state $x_t$\\{\scriptsize step $t$}};
+\node[exp,text width=26mm] (D) at (3.5,1.6) {\textbf{exact denoiser}\\$O_t\!=\!\mathbb{E}[x_0|x_t]$\\{\scriptsize anchor steps}};
+\node[chp,text width=26mm] (h) at (3.5,-1.6) {\textbf{cheap probe}\\$h_t$ {\scriptsize (every step)}};
+\node[cache,text width=15mm] (Oc) at (7.15,1.6) {output cache\\$\{O_a\}$};
+\node[cache,text width=15mm] (hc) at (7.15,-1.6) {probe cache\\$\{h_a\}$};
+\node[box,fill=white,draw=black!62,text width=25mm,minimum height=24mm] (bank) at (10.55,0)
+   {\textbf{predictor bank}\\{\scriptsize $8$ members}\\{\scriptsize Taylor $0$–$2$}\\{\scriptsize $\cup$ online LS}\\[1pt]$\Rightarrow\ \hat O_i,\ \hat h_i$};
+\node[dec,text width=28mm,minimum height=24mm] (dec) at (14.15,0)
+   {\textbf{probe$\rightarrow$select}\\rank $d_\mu(\hat h_i,h_t)$\\{\scriptsize $\mu\!\in\!\{\cos,L_2,L_1\}$}\\$\hat\imath\!=\!\arg\min_i$\\emit $\hat O_{\hat\imath}$};
+\node[aux,text width=28mm] (orc) at (14.15,3.3) {\emph{oracle} bound (n/a)\\rank $\|\hat O_i-O_t\|_2$};
+\node[st,text width=32mm] (ddim) at (8.1,-4.15) {DDIM update\ $x_t\!\rightarrow\!x_{t-1}$};
+% --- expensive lane (red) ---
+\draw[ax] (xt.north) |- (D.west);
+\draw[ax] (D) -- (Oc);
+\draw[ax] (Oc.east) -- (bank.west|-Oc);
+% --- cheap lane (blue) ---
+\draw[ac] (xt.south) |- (h.west);
+\draw[ac] (h) -- (hc);
+\draw[ac] (hc.east) -- (bank.west|-hc);
+% --- bank -> decision ---
+\draw[a] (bank.east) -- node[above,font=\tiny,inner sep=1.6pt]{$\hat O_i,\hat h_i$} (dec.west);
+% --- fresh probe h_t compared inside the decision ---
+\draw[ac] (h.south) -- ++(0,-1.15) -| (dec.south);
+% --- oracle taps predictors + true O_t (dashed, not deployable) ---
+\draw[ad] (bank.north) |- (orc.west);
+% --- selected output + sampling loop ---
+\draw[a] (dec.east) -- ++(0.5,0) |- (ddim.east);
+\draw[loop] (ddim.west) -| node[below,pos=0.22,font=\tiny,inner sep=1.6pt]{next step} (xt.south);
+% --- legend ---
+\begin{scope}[shift={(0.1,-5.4)},font=\tiny]
+  \node[lgd,fill=cExpBg,draw=cExpLn] (e1) at (0,0){};    \node[anchor=west] at (0.3,0){exact output (expensive)};
+  \node[lgd,fill=cChpBg,draw=cChpLn] (e2) at (4.7,0){};  \node[anchor=west] at (5.0,0){cheap probe path};
+  \node[lgd,fill=cDecBg,draw=cDecLn] (e3) at (8.0,0){};  \node[anchor=west] at (8.3,0){decision};
+  \node[lgd,fill=cAuxBg,draw=cAuxLn,dashed] (e4) at (10.4,0){}; \node[anchor=west] at (10.7,0){oracle (unavailable)};
+  \draw[loop] (13.9,0)--(14.7,0); \node[anchor=west] at (14.75,0){sampling loop};
+\end{scope}
+\end{tikzpicture}}
 \caption{\textbf{Architecture of the exact-residual testbed and the probe-then-select
 mechanism.} Because the prior is a Gaussian mixture, the true denoiser output $O_t$ (red,
 ``expensive'') is available in closed form, and a cheap hard-assignment \emph{probe} $h_t$
@@ -234,27 +260,37 @@ as mechanism, not theorem: the inequality holds empirically in $21/21$ regimes.
 
 % =========================== WORKFLOW DIAGRAM ===========================
 \begin{figure*}[t]\centering
-\begin{tikzpicture}[node distance=5mm and 9mm]
-\node[stg] (tb) {\textbf{Exact-residual}\\\textbf{testbed}\\(\S\ref{sec:testbed})};
-\node[stg, right=of tb] (core) {\textbf{Core study}\\$12$ seeds, base regime\\bootstrap $95\%$ CIs};
-\node[blk, right=11mm of core] (q1) {\textbf{Q1} $L_2$ vs.\ cosine proxy};
-\node[blk, below=2.6mm of q1] (q2) {\textbf{Q2} online vs.\ Taylor family};
-\node[blk, above=2.6mm of q1] (q3) {\textbf{Q3} probe-then-select vs.\ naive};
-\node[stg, right=12mm of q1] (sweep) {\textbf{21-regime sweep}\\accel\,$\cdot$\,dim\,$\cdot$\,sep\\noise\,$\cdot$\,$K$ ($5$ seeds ea.)};
-\node[stg, below=8mm of sweep] (pt) {\textbf{30-test}\\\textbf{adversarial suite}\\pre-registered};
-\node[sel, below=8mm of core, xshift=6mm, text width=63mm] (v) {\textbf{Verdicts.}
-$L_2\!>\!\cos$ in $21/21$ (small, grows w/ difficulty);\ online \emph{refuted} ($0/21$ wins);\
-probe beats naive only @ high accel;\ \textbf{proxy fidelity} is the lever (headroom $\to$ probe richness $0.33\!\to\!1.0$).};
-\draw[ar](tb)--(core);
-\draw[ar](core.east) to[out=20,in=180](q3.west);
-\draw[ar](core.east)--(q1.west);
-\draw[ar](core.east) to[out=-20,in=180](q2.west);
-\draw[ar](q3.east) to[out=0,in=160](sweep.west);
-\draw[ar](q1.east)--(sweep.west);
-\draw[ar](q2.east) to[out=0,in=200](sweep.west);
-\draw[ar](sweep)--(pt);
-\draw[ar](pt.south) to[out=-90,in=0](v.east);
-\end{tikzpicture}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[x=1cm,y=1cm]
+% --- stages (numbered) ---
+\node[st,text width=24mm] (tb)   at (0,0)     {\textbf{\ding{182}\ \ testbed}\\{\scriptsize exact-residual}\\{\scriptsize closed-form $O_t$}};
+\node[st,text width=24mm] (core) at (3.5,0)   {\textbf{\ding{183}\ \ core study}\\{\scriptsize $12$ seeds}\\{\scriptsize bootstrap $95\%$ CIs}};
+\node[box,fill=white,draw=black!58,text width=31mm] (q3) at (7.5,1.5)  {\textbf{Q3}\ \ probe$\rightarrow$select \emph{vs.}\ naive};
+\node[box,fill=white,draw=black!58,text width=31mm] (q1) at (7.5,0)    {\textbf{Q1}\ \ $L_2$ \emph{vs.}\ cosine proxy};
+\node[box,fill=white,draw=black!58,text width=31mm] (q2) at (7.5,-1.5) {\textbf{Q2}\ \ online \emph{vs.}\ Taylor family};
+\node[st,text width=24mm] (sweep) at (11.7,0) {\textbf{\ding{184}\ \ 21-regime sweep}\\{\scriptsize accel$\cdot$dim$\cdot$sep}\\{\scriptsize noise$\cdot K$, $5$ seeds}};
+\node[st,text width=24mm] (pt)    at (15.1,0) {\textbf{\ding{185}\ \ 30-test suite}\\{\scriptsize pre-registered}\\{\scriptsize $26$P\,/\,$4$N\,/\,$0$F}};
+\node[dec,align=left,text width=158mm] (v) at (7.9,-3.35)
+  {\textbf{\ding{186}\ \ Verdicts (subtractive).}\ \ $L_2\!>\!\cos$ in \textbf{$21/21$} regimes (small, grows with difficulty);\quad
+   online predictors \textbf{refuted} (\textbf{$0/21$} wins);\quad probe$\rightarrow$select beats naive \emph{only} at aggressive acceleration;\quad
+   the lever that scales is \textbf{proxy fidelity} — oracle headroom exists and rises with probe richness $0.33\!\rightarrow\!1.0$.};
+% --- fan-out bus core -> Q1/Q2/Q3 ---
+\draw[a] (core.east) -- (5.75,0);
+\draw[black!72,line width=0.7pt] (5.75,-1.5) -- (5.75,1.5);
+\draw[a] (5.75,1.5) -- (q3.west);
+\draw[a] (5.75,0)   -- (q1.west);
+\draw[a] (5.75,-1.5)-- (q2.west);
+% --- fan-in bus Q* -> sweep ---
+\draw[a] (q3.east) -- (9.65,1.5);
+\draw[a] (q1.east) -- (9.65,0);
+\draw[a] (q2.east) -- (9.65,-1.5);
+\draw[black!72,line width=0.7pt] (9.65,-1.5) -- (9.65,1.5);
+\draw[a] (9.65,0) -- (sweep.west);
+% --- sequential ---
+\draw[a] (tb) -- (core);
+\draw[a] (sweep) -- (pt);
+\draw[a] (pt.south) |- (v.east);
+\end{tikzpicture}}
 \caption{\textbf{Experimental workflow.} The exact testbed feeds a $12$-seed core study
 that isolates three questions (Q1--Q3); each is then stress-tested across a $21$-regime
 sweep and a pre-registered $30$-test adversarial suite. Every comparison is paired and
