@@ -28,6 +28,7 @@
 \definecolor{cDecLn}{HTML}{3C8B57}\definecolor{cDecBg}{HTML}{E7F2EB}
 \definecolor{cAuxLn}{HTML}{8A8A8A}\definecolor{cAuxBg}{HTML}{F0F0F0}
 \definecolor{cStLn}{HTML}{45566A}\definecolor{cStBg}{HTML}{EDF1F5}
+\definecolor{cAmbLn}{HTML}{B07A10}\definecolor{cAmbBg}{HTML}{FBF2DD}
 \definecolor{cZone}{HTML}{F7F5EF}\definecolor{cZoneLn}{HTML}{CFC7B3}
 % ---- shared TikZ styles ----
 \tikzset{
@@ -95,12 +96,33 @@ quantify that gap rather than hide it. All code and numbers are released.}
 \begin{figure*}[t]\centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[x=1cm,y=1cm]
-% --- backdrop: the skipped-step prediction/selection region ---
+% --- soft pastel stage panels (group logic, low saturation) ---
 \begin{scope}[on background layer]
-  \fill[cZone,rounded corners=5pt] (5.55,-3.2) rectangle (16.0,4.15);
-  \draw[cZoneLn,rounded corners=5pt,line width=0.6pt] (5.55,-3.2) rectangle (16.0,4.15);
-  \node[cZoneLn,font=\scriptsize\itshape,anchor=north west] at (5.72,4.06) {skipped-step prediction \& selection};
+  \fill[cZone,rounded corners=6pt] (-1.05,-3.4) rectangle (16.25,4.35);
+  \draw[cZoneLn,rounded corners=6pt,line width=0.6pt] (-1.05,-3.4) rectangle (16.25,4.35);
+  \fill[cExpBg,rounded corners=4pt] (1.85,0.55) rectangle (8.8,2.75);
+  \fill[cChpBg,rounded corners=4pt] (1.85,-2.75) rectangle (8.8,-0.55);
+  \fill[cDecBg,rounded corners=4pt] (8.95,-1.8) rectangle (16.1,4.05);
+  \node[cDecLn,font=\scriptsize\itshape,anchor=north west] at (9.05,3.98) {predict \& select};
 \end{scope}
+% --- denoising trajectory: anchors (compute) vs skipped (predict) ---
+\begin{scope}[shift={(0,5.75)}]
+  \draw[-{Stealth[length=5pt,width=4pt]},line width=0.9pt,black!50] (0.35,0) -- (15.75,0);
+  \node[anchor=east,font=\scriptsize] at (0.3,0) {$x_T$};
+  \node[anchor=west,font=\scriptsize] at (15.8,0) {$x_0$};
+  \foreach \i in {0,3,6,9}{\pgfmathsetmacro\xx{1.0+\i*1.55}%
+    \node[circle,draw=cExpLn,line width=0.8pt,fill=cExpLn!70,minimum size=4.8mm,inner sep=0] at (\xx,0){};}
+  \foreach \i in {1,2,4,5,7,8}{\pgfmathsetmacro\xx{1.0+\i*1.55}%
+    \node[circle,draw=black!45,line width=0.6pt,fill=white,minimum size=4.2mm,inner sep=0] at (\xx,0){};}
+  \pgfmathsetmacro\xz{1.0+4*1.55}
+  \node[circle,draw=cDecLn,line width=1.2pt,minimum size=6.6mm,inner sep=0] (zoom) at (\xz,0){};
+  \node[anchor=north,font=\tiny,text=cDecLn] at (\xz,-0.42) {this step};
+  \node[anchor=north west,font=\scriptsize\itshape] at (0.3,-0.66)
+    {\textcolor{cExpLn}{$\bullet$}\,anchor: compute $O_t$\qquad$\circ$\,skipped: predict $\hat O_t$ from cache};
+\end{scope}
+% zoom-in lines from the highlighted step down onto the mechanism
+\draw[cZoneLn,line width=0.6pt,densely dashed] (zoom.south west) -- (-1.05,4.35);
+\draw[cZoneLn,line width=0.6pt,densely dashed] (zoom.south east) -- (16.25,4.35);
 % --- nodes on a strict grid ---
 \node[st,text width=15mm] (xt) at (0,0) {state $x_t$\\{\scriptsize step $t$}};
 \node[exp,text width=26mm] (D) at (3.5,1.6) {\textbf{exact denoiser}\\$O_t\!=\!\mathbb{E}[x_0|x_t]$\\{\scriptsize anchor steps}};
@@ -262,31 +284,40 @@ as mechanism, not theorem: the inequality holds empirically in $21/21$ regimes.
 \begin{figure*}[t]\centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[x=1cm,y=1cm]
-% --- stages (numbered) ---
+% --- soft backdrop band behind the pipeline row ---
+\begin{scope}[on background layer]
+  \fill[cZone,rounded corners=6pt] (-1.35,-2.15) rectangle (16.75,2.35);
+  \draw[cZoneLn,rounded corners=6pt,line width=0.6pt] (-1.35,-2.15) rectangle (16.75,2.35);
+\end{scope}
+% --- numbered stages ---
 \node[st,text width=24mm] (tb)   at (0,0)     {\textbf{\ding{182}\ \ testbed}\\{\scriptsize exact-residual}\\{\scriptsize closed-form $O_t$}};
 \node[st,text width=24mm] (core) at (3.5,0)   {\textbf{\ding{183}\ \ core study}\\{\scriptsize $12$ seeds}\\{\scriptsize bootstrap $95\%$ CIs}};
-\node[box,fill=white,draw=black!58,text width=31mm] (q3) at (7.5,1.5)  {\textbf{Q3}\ \ probe$\rightarrow$select \emph{vs.}\ naive};
-\node[box,fill=white,draw=black!58,text width=31mm] (q1) at (7.5,0)    {\textbf{Q1}\ \ $L_2$ \emph{vs.}\ cosine proxy};
-\node[box,fill=white,draw=black!58,text width=31mm] (q2) at (7.5,-1.5) {\textbf{Q2}\ \ online \emph{vs.}\ Taylor family};
-\node[st,text width=24mm] (sweep) at (11.7,0) {\textbf{\ding{184}\ \ 21-regime sweep}\\{\scriptsize accel$\cdot$dim$\cdot$sep}\\{\scriptsize noise$\cdot K$, $5$ seeds}};
-\node[st,text width=24mm] (pt)    at (15.1,0) {\textbf{\ding{185}\ \ 30-test suite}\\{\scriptsize pre-registered}\\{\scriptsize $26$P\,/\,$4$N\,/\,$0$F}};
-\node[dec,align=left,text width=158mm] (v) at (7.9,-3.35)
-  {\textbf{\ding{186}\ \ Verdicts (subtractive).}\ \ $L_2\!>\!\cos$ in \textbf{$21/21$} regimes (small, grows with difficulty);\quad
-   online predictors \textbf{refuted} (\textbf{$0/21$} wins);\quad probe$\rightarrow$select beats naive \emph{only} at aggressive acceleration;\quad
-   the lever that scales is \textbf{proxy fidelity} — oracle headroom exists and rises with probe richness $0.33\!\rightarrow\!1.0$.};
-% --- fan-out bus core -> Q1/Q2/Q3 ---
-\draw[a] (core.east) -- (5.75,0);
-\draw[black!72,line width=0.7pt] (5.75,-1.5) -- (5.75,1.5);
-\draw[a] (5.75,1.5) -- (q3.west);
-\draw[a] (5.75,0)   -- (q1.west);
-\draw[a] (5.75,-1.5)-- (q2.west);
-% --- fan-in bus Q* -> sweep ---
-\draw[a] (q3.east) -- (9.65,1.5);
-\draw[a] (q1.east) -- (9.65,0);
-\draw[a] (q2.east) -- (9.65,-1.5);
-\draw[black!72,line width=0.7pt] (9.65,-1.5) -- (9.65,1.5);
-\draw[a] (9.65,0) -- (sweep.west);
-% --- sequential ---
+% --- three questions, tinted by outcome ---
+\node[box,fill=cAmbBg,draw=cAmbLn,text width=33mm] (q3) at (7.65,1.55)  {\textbf{Q3}\ \ probe$\rightarrow$select \emph{vs.}\ naive\\{\scriptsize\textcolor{cAmbLn}{$\sim$ only at high accel}}};
+\node[box,fill=cDecBg,draw=cDecLn,text width=33mm] (q1) at (7.65,0)     {\textbf{Q1}\ \ $L_2$ \emph{vs.}\ cosine proxy\\{\scriptsize\textcolor{cDecLn}{\ding{51} kept, but small}}};
+\node[box,fill=cExpBg,draw=cExpLn,text width=33mm] (q2) at (7.65,-1.55) {\textbf{Q2}\ \ online \emph{vs.}\ Taylor family\\{\scriptsize\textcolor{cExpLn}{\ding{55} refuted}}};
+\node[st,text width=24mm] (sweep) at (12.0,0) {\textbf{\ding{184}\ \ 21-regime sweep}\\{\scriptsize accel$\cdot$dim$\cdot$sep}\\{\scriptsize noise$\cdot K$, $5$ seeds}};
+\node[st,text width=24mm] (pt)    at (15.4,0) {\textbf{\ding{185}\ \ 30-test suite}\\{\scriptsize pre-registered}\\{\scriptsize $26$P\,/\,$4$N\,/\,$0$F}};
+% --- verdict panel with matching glyphs ---
+\node[dec,align=left,text width=160mm] (v) at (8.1,-3.7)
+  {\textbf{\ding{186}\ \ Verdicts (subtractive).}\quad
+   \textcolor{cDecLn}{\ding{51}}~$L_2\!>\!\cos$ in \textbf{$21/21$} regimes (small, grows with difficulty);\quad
+   \textcolor{cExpLn}{\ding{55}}~online predictors \textbf{refuted} (\textbf{$0/21$} wins);\quad
+   \textcolor{cAmbLn}{$\sim$}~probe$\rightarrow$select beats naive \emph{only} at aggressive acceleration;\quad
+   $\Rightarrow$ the lever that scales is \textbf{proxy fidelity} — oracle headroom rises with probe richness $0.33\!\rightarrow\!1.0$.};
+% --- fan-out bus: core -> Q1/Q2/Q3 ---
+\draw[a] (core.east) -- (5.85,0);
+\draw[black!72,line width=0.7pt] (5.85,-1.55) -- (5.85,1.55);
+\draw[a] (5.85,1.55) -- (q3.west);
+\draw[a] (5.85,0)    -- (q1.west);
+\draw[a] (5.85,-1.55)-- (q2.west);
+% --- fan-in bus: Q* -> sweep ---
+\draw[a] (q3.east) -- (9.5,1.55);
+\draw[a] (q1.east) -- (9.5,0);
+\draw[a] (q2.east) -- (9.5,-1.55);
+\draw[black!72,line width=0.7pt] (9.5,-1.55) -- (9.5,1.55);
+\draw[a] (9.5,0) -- (sweep.west);
+% --- sequential + hand-off to verdicts ---
 \draw[a] (tb) -- (core);
 \draw[a] (sweep) -- (pt);
 \draw[a] (pt.south) |- (v.east);
