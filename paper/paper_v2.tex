@@ -205,6 +205,40 @@ $30$-test suite (Fig.~\ref{fig:flow}) that retire the online-predictor and
 probe-adaptivity claims and bound the $L_2$ claim to a small, robust edge.
 \end{itemize}
 
+\section{Findings at a glance}\label{sec:findings}
+We summarise the results upfront; each is established with $12$ seeds (core) or $5$
+seeds per cell (sweep) and $95\%$ bootstrap CIs, and re-checked by the $30$-test suite.
+\begin{enumerate}\setlength\itemsep{0.25ex}\leftskip-2pt
+\item[\textbf{F1}] \textbf{The $L_2$ proxy beats cosine everywhere, but the effect is
+small.} Rank fidelity to the true error improves in \textbf{$21/21$} regimes
+($\Delta$Spearman $+0.016$, CI $(+0.014,+0.019)$; top-$1$ pick $+0.028$), not the
+${\sim}4.4\times$ our single-seed pilot reported. $L_1$ matches $L_2$, so the lever is
+``use magnitude,'' not cosine per se; the edge \emph{grows} with difficulty
+($+0.012\!\rightarrow\!+0.034$ from mild to stride-$8$ acceleration).
+\item[\textbf{F2}] \textbf{Online least-squares predictors do not beat fixed Taylor.} They
+are reliably worse (Taylor better in \textbf{$19/21$} regimes, online wins $0/21$); the
+best single fixed predictor is a Taylor $100\%$ of the time. The pilot's online win does
+not replicate.
+\item[\textbf{F3}] \textbf{Probe-then-select's adaptivity pays only at aggressive
+acceleration.} It beats the best fixed predictor in exactly \textbf{$1/21$} regimes (cache
+stride $8$); everywhere milder a single fixed predictor matches it, so measured gains of
+``adaptive'' caching at moderate speedups come from the \emph{speedup}, not the adaptivity.
+\item[\textbf{F4}] \textbf{The selection problem has no optimality gap.} Per-token
+selection is separable, equal-cost, and unconstrained, so greedy selection is provably the
+global optimum (\S\ref{sec:theory}). An \emph{oracle} still beats naive (headroom
+$+0.005$, up to $+0.14$ at stride $8$), so the binding constraint is \emph{proxy fidelity},
+not selection or the predictor family.
+\item[\textbf{F5}] \textbf{Proxy fidelity is set by probe richness.} As the probe grows
+from a shallow hard readout to the exact output, fidelity rises monotonically
+($0.33\!\rightarrow\!0.68\!\rightarrow\!0.73\!\rightarrow\!1.0$). A real DiT's learned
+first-layer probe sits far up this curve (Spearman ${\approx}0.77$~\cite{challagundla2025probe}),
+so our shallow analytic probe \emph{lower-bounds} the effect and the $L_2$ gap is conservative.
+\item[\textbf{F6}] \textbf{Methodological.} A pre-registered $30$-test suite yields
+\textbf{$26$ pass, $0$ fail, $4$ honest notes}; single-seed ``wins'' wash out or reverse
+under multi-seed pressure, underscoring that these methods must be judged on trained
+networks with paired fidelity-to-base-model metrics.
+\end{enumerate}
+
 \section{Background and related work}
 \textbf{Feature caching.} DeepCache~\cite{ma2024deepcache} and FORA~\cite{selvaraju2024fora}
 reuse features on fixed schedules; TeaCache~\cite{liu2024teacache} modulates reuse by a
