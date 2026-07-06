@@ -62,34 +62,34 @@ Token-Adaptive Prediction on an Exact-Residual Testbed\par}
 \begin{minipage}{0.88\textwidth}
 \small
 \textbf{Abstract.} Training-free diffusion accelerators such as the Token-Adaptive
-Predictor (TAP) reconstruct skipped network outputs from cached features, selecting per
-token which cheap predictor to trust by reading a first-layer \emph{probe} and ranking
-predictors with a cosine proxy. We investigate three candidate improvements suggested by a
-single-seed pilot: an $L_2$ proxy in place of cosine, online least-squares predictors in
-place of fixed Taylor extrapolators, and the probe's per-token adaptivity. Using an
-exact-residual Gaussian-mixture testbed, in which the true denoiser output is available in
-closed form (Tweedie) and proxy fidelity is therefore directly measurable without a trained
-network, we conduct a $12$-seed core study, a $21$-regime sweep, and a pre-registered
-$30$-test adversarial suite, all with bootstrap $95\%$ confidence intervals. The results
-are largely negative. (i) The $L_2$ proxy improves rank fidelity in all $21$ regimes, but
-the effect is small ($\Delta$Spearman $+0.016$, CI $(+0.014,+0.019)$) rather than the
-roughly fourfold gain observed in the pilot, and increases only as the task becomes harder.
-(ii) Online predictors do not outperform fixed Taylor extrapolators; they are consistently
-worse, in $19$ of $21$ regimes. (iii) Probe-then-select surpasses a strong fixed predictor
-only under aggressive acceleration, so at moderate speedups the acceleration alone, not the
-adaptivity, accounts for the observed gains. We further show that per-token selection is
-already optimal: the objective is separable, equal-cost, and unconstrained, so greedy
-selection attains the global optimum. This reframes the central quantity as \emph{proxy
-fidelity}, since an oracle selector retains headroom that the probe cannot capture and
-fidelity increases monotonically with probe richness (from $0.33$ to $1.0$). We also explain
-why an $L_2$ proxy tracks the $L_2$ output residual more faithfully than a magnitude-blind
-cosine.\par
+Predictor (TAP) speed up sampling by skipping most of the network and rebuilding the skipped
+outputs from cached features. For each token, TAP picks which cheap predictor to trust by
+reading a first-layer \emph{probe} and scoring the predictors with a cosine distance. We
+test three possible improvements that looked good in an early single-seed run: using an
+$L_2$ distance instead of cosine, using online least-squares predictors instead of fixed
+Taylor ones, and letting the probe choose a predictor for each token. We test them on a
+Gaussian-mixture testbed where the exact denoiser output is known in closed form (Tweedie),
+so we can measure how well the probe ranks predictors without a trained network. We run a
+$12$-seed core study, a $21$-regime sweep, and a pre-registered $30$-test suite, all with
+$95\%$ bootstrap confidence intervals. Most of the improvements do not hold. (i) The $L_2$
+distance ranks predictors better than cosine in all $21$ regimes, but the gain is small
+($\Delta$Spearman $+0.016$, CI $(+0.014,+0.019)$), not the roughly fourfold gain seen in the
+early run, and it grows only as the task gets harder. (ii) Online predictors do not beat
+fixed Taylor ones; they are worse in $19$ of $21$ regimes. (iii) Letting the probe choose
+per token beats a strong fixed predictor only when the sampler skips very aggressively; at
+moderate speedups the speedup itself, not the per-token choice, explains the gains. We then
+show that the per-token choice is already the best possible: each token is chosen on its
+own, every predictor costs the same, and there are no shared constraints, so simply taking
+the best predictor for each token is optimal. This shifts the real question to \emph{proxy
+fidelity}: an oracle that knows the true errors still does better than the probe, and the
+probe's ranking improves steadily as it is given a richer signal (from $0.33$ to $1.0$). We
+also explain why an $L_2$ distance follows the true $L_2$ error better than a cosine
+distance, which ignores size.\par
 \vspace{4pt}
-\textit{TAP (arXiv:2603.03792) provides no public implementation; all TAP behaviour reported
-here rests on a faithful reimplementation. The testbed is a shallow analytic denoiser and
-does not include the deep learned layers that make a real first-layer probe more
-informative; we quantify this gap rather than leave it implicit. All code and numerical
-results are released.}
+\textit{TAP (arXiv:2603.03792) has no public code, so everything about TAP here comes from
+our own faithful reimplementation. Our testbed uses a simple analytic denoiser and does not
+have the deep trained layers that make a real first-layer probe more useful; we measure that
+gap instead of hiding it. All code and numbers are released.}
 \end{minipage}
 \end{center}
 \vspace{9pt}
@@ -168,87 +168,82 @@ results are released.}
 \end{scope}
 \end{tikzpicture}}
 \caption{\textbf{Architecture of the exact-residual testbed and the probe-then-select
-mechanism.} Because the prior is a Gaussian mixture, the true denoiser output $O_t$ (red,
-computationally expensive) is available in closed form, and a cheap hard-assignment
-\emph{probe} $h_t$ (blue) plays the role of a first-layer readout. At a skipped step the
-predictor bank extrapolates the cached outputs and probes; the selector ranks predictors by
-a proxy distance on the probe and applies the selected predictor's output. The \emph{oracle}
-(dashed) ranks by the true output error; it is not deployable and upper-bounds the gain
-attainable by any proxy.}
+mechanism.} Because the data is a Gaussian mixture, the true denoiser output $O_t$ (red,
+expensive) is known in closed form, and a cheap hard-assignment \emph{probe} $h_t$ (blue)
+stands in for a first-layer readout. At a skipped step the predictor bank guesses the cached
+outputs and probes; the selector ranks the predictors by a distance on the probe and uses
+the chosen predictor's output. The \emph{oracle} (dashed) ranks by the true output error; it
+cannot be used in practice and marks the best any proxy could do.}
 \label{fig:arch}
 \end{figure*}
 
 \section{Introduction}
 Feature-caching accelerators for diffusion transformers (DiTs)~\cite{peebles2023dit} skip
-most of the network on most sampling steps and reconstruct the missing output from cached
-values~\cite{ma2024deepcache,selvaraju2024fora}. The Token-Adaptive Predictor (TAP)
-generalises this idea: it maintains a family of cheap extrapolators and, for each token,
-selects one by reading the first-layer \emph{probe} (the modulated input) and ranking
-predictors according to how closely their extrapolated probe matches the freshly computed
-probe under a cosine proxy. A single-seed pilot suggested three candidate improvements:
-replacing cosine with an $L_2$ proxy, replacing fixed Taylor extrapolators with online
-least-squares fits, and exploiting the probe's per-token adaptivity. In this work we
-evaluate these proposals under multi-seed, multi-regime testing to determine which of them
-hold.
+most of the network on most sampling steps and rebuild the missing output from cached
+values~\cite{ma2024deepcache,selvaraju2024fora}. The Token-Adaptive Predictor (TAP) extends
+this idea: it keeps a set of cheap predictors and, for each token, picks one by reading the
+first-layer \emph{probe} (the modulated input) and choosing the predictor whose guessed
+probe is closest to the real probe, using a cosine distance. An early single-seed run
+suggested three ways to do better: use an $L_2$ distance instead of cosine, use online
+least-squares predictors instead of fixed Taylor ones, and let the probe pick a predictor
+for each token. Here we test these ideas across many seeds and many settings to see which
+ones hold.
 
-The findings are predominantly negative, and we argue that they are more informative than an
-additional caching heuristic. Two of the three proposals do not survive multiple seeds, and
-the third yields only a small but reproducible improvement. The study also identifies the
-operative degree of freedom. Because TAP's per-token selection is separable, equal-cost, and
-unconstrained, greedy per-token selection already attains the global optimum
-(\S\ref{sec:theory}), so no selection-optimization gap remains. The binding constraint is
-instead the fidelity of the cheap proxy to the true, unobserved output error, a quantity
-that the exact testbed measures directly.
+Most of the results are negative, and we think they are more useful than one more caching
+trick. Two of the three ideas fail once we use more than one seed, and the third gives only
+a small but repeatable gain. The study also points to the thing that really matters. Because
+TAP chooses each token on its own, every predictor costs the same, and there are no shared
+limits, simply picking the best predictor for each token is already the best possible choice
+(\S\ref{sec:theory}); there is nothing to gain by choosing more cleverly. What actually
+limits the method is how well the cheap probe matches the true, hidden output error, and our
+testbed measures this directly.
 
 \noindent\textbf{Contributions.}
 \begin{itemize}\setlength\itemsep{0.15ex}
-\item An \emph{exact-residual} Gaussian-mixture diffusion testbed (Fig.~\ref{fig:arch}) in
-which the true denoiser output, and therefore every predictor's true error, is closed-form,
-making proxy fidelity measurable without a trained network.
-\item A proof that TAP's per-token selection has \emph{zero} optimality gap, relocating the
-problem from selection optimization to proxy fidelity, together with a mechanism explaining
-why an $L_2$ proxy outperforms cosine.
-\item A systematic evaluation ($12$-seed core, $21$-regime sweep, and a pre-registered
-$30$-test suite; Fig.~\ref{fig:flow}) that retires the online-predictor and
-probe-adaptivity proposals and bounds the $L_2$ improvement to a small, reproducible effect.
+\item A Gaussian-mixture testbed (Fig.~\ref{fig:arch}) where the true denoiser output, and
+therefore every predictor's true error, is known in closed form. This lets us measure how
+well the probe ranks predictors without a trained network.
+\item A proof that TAP's per-token choice is already the best possible, which moves the
+problem from ``choose better'' to ``measure the probe better,'' along with an explanation of
+why an $L_2$ distance beats cosine.
+\item A full evaluation ($12$-seed core, $21$-regime sweep, and a pre-registered $30$-test
+suite; Fig.~\ref{fig:flow}) that rules out the online-predictor and per-token ideas and
+shows the $L_2$ gain is small but real.
 \end{itemize}
 
 \section{Findings at a glance}\label{sec:findings}
-We summarise the results upfront; each is established with $12$ seeds (core) or $5$
-seeds per cell (sweep) and $95\%$ bootstrap CIs, and re-checked by the $30$-test suite.
+We state the results upfront. Each one uses $12$ seeds (core) or $5$ seeds per cell (sweep)
+with $95\%$ bootstrap CIs, and is re-checked by the $30$-test suite.
 \begin{enumerate}\setlength\itemsep{0.25ex}\leftskip-2pt
-\item[\textbf{F1}] \textbf{The $L_2$ proxy improves on cosine in every regime, but the
-effect is small.} Rank fidelity to the true error increases in \textbf{$21/21$} regimes
-($\Delta$Spearman $+0.016$, CI $(+0.014,+0.019)$; top-$1$ selection accuracy $+0.028$),
-rather than the roughly fourfold gain reported by the single-seed pilot. $L_1$ performs
-equivalently to $L_2$, indicating that the operative factor is the use of magnitude
-information rather than cosine specifically; the advantage increases with task difficulty,
-from $+0.012$ at mild acceleration to $+0.034$ at cache stride $8$.
-\item[\textbf{F2}] \textbf{Online least-squares predictors do not outperform fixed Taylor
-extrapolators.} They are consistently worse (Taylor superior in \textbf{$19/21$} regimes,
-online superior in $0/21$), and the best single fixed predictor is a Taylor extrapolator in
-every regime. The advantage reported in the pilot does not replicate.
-\item[\textbf{F3}] \textbf{The adaptivity of probe-then-select is beneficial only under
-aggressive acceleration.} It surpasses the best fixed predictor in exactly \textbf{$1/21$}
-regimes (cache stride $8$); in all milder regimes a single fixed predictor performs
-comparably, so the gains attributed to adaptive caching at moderate speedups arise from the
-acceleration rather than the adaptivity.
-\item[\textbf{F4}] \textbf{The selection problem has no optimality gap.} Per-token
-selection is separable, equal-cost, and unconstrained, so greedy selection provably attains
-the global optimum (\S\ref{sec:theory}). An oracle selector nonetheless outperforms the
-naive baseline (headroom $+0.005$, increasing to $+0.14$ at stride $8$), identifying
-\emph{proxy fidelity}, rather than selection or the predictor family, as the binding
-constraint.
-\item[\textbf{F5}] \textbf{Proxy fidelity is governed by probe richness.} As the probe
-ranges from a shallow hard readout to the exact output, fidelity increases monotonically
-($0.33$, $0.68$, $0.73$, $1.0$). A trained DiT's learned first-layer probe lies substantially
-higher on this curve (Spearman ${\approx}0.77$~\cite{challagundla2025probe}); the shallow
-analytic probe used here therefore lower-bounds the effect, and the measured $L_2$ advantage
-is conservative.
-\item[\textbf{F6}] \textbf{Methodological.} The pre-registered $30$-test suite yields
-\textbf{$26$ passes, $0$ failures, and $4$ qualifying notes}. Improvements that appear under
-a single seed diminish or reverse under multi-seed evaluation, indicating that such methods
-should be assessed on trained networks using paired fidelity-to-base-model metrics.
+\item[\textbf{F1}] \textbf{The $L_2$ distance beats cosine in every setting, but the gain is
+small.} It ranks predictors better than cosine in \textbf{$21/21$} settings ($\Delta$Spearman
+$+0.016$, CI $(+0.014,+0.019)$; top-$1$ pick $+0.028$), not the roughly fourfold gain from
+the early run. $L_1$ does as well as $L_2$, so what matters is using size, not cosine itself.
+The gain grows as the task gets harder, from $+0.012$ at mild skipping to $+0.034$ at cache
+stride $8$.
+\item[\textbf{F2}] \textbf{Online least-squares predictors do not beat fixed Taylor ones.}
+They are worse (Taylor wins in \textbf{$19/21$} settings, online in $0/21$), and the best
+single fixed predictor is always a Taylor one. The gain from the early run does not repeat.
+\item[\textbf{F3}] \textbf{Letting the probe pick per token helps only when the sampler
+skips very aggressively.} It beats the best fixed predictor in just \textbf{$1/21$} settings
+(cache stride $8$); in every milder setting a single fixed predictor does just as well, so
+the gains from ``adaptive'' caching at moderate speedups come from the speedup, not the
+per-token choice.
+\item[\textbf{F4}] \textbf{There is no room to improve the choice itself.} Each token is
+chosen on its own, every predictor costs the same, and there are no shared limits, so picking
+the best predictor per token is already the best possible (\S\ref{sec:theory}). An oracle
+that knows the true errors still beats the naive baseline (gap $+0.005$, up to $+0.14$ at
+stride $8$), so what limits the method is \emph{proxy fidelity}, not the choice rule or the
+predictor set.
+\item[\textbf{F5}] \textbf{Proxy fidelity depends on how rich the probe is.} As the probe
+goes from a simple hard readout to the exact output, its ranking gets steadily better
+($0.33$, $0.68$, $0.73$, $1.0$). A trained DiT's learned first-layer probe sits much higher
+on this curve (Spearman ${\approx}0.77$~\cite{challagundla2025probe}), so our simple probe
+gives a lower bound and the $L_2$ gain we measure is on the safe side.
+\item[\textbf{F6}] \textbf{Method note.} The pre-registered $30$-test suite gives
+\textbf{$26$ passes, $0$ failures, and $4$ notes}. Gains that show up with one seed shrink
+or flip with more seeds, so these methods should be judged on trained networks using paired
+fidelity-to-base-model scores.
 \end{enumerate}
 
 \section{Background and related work}
@@ -261,54 +256,50 @@ a per-token \emph{selected} member of a small family. \textbf{Diffusion samplers
 the variance-preserving forward process of DDPM~\cite{ho2020ddpm} with deterministic
 DDIM~\cite{song2021ddim} reverse steps; the exact posterior mean follows from
 Tweedie's formula~\cite{efron2011tweedie} and the score view of
-diffusion~\cite{song2019generative,song2021sde}. \textbf{Evaluation hazard.} These methods
-are compared by generation quality at matched compute. A recurring hazard, which we make
-explicit and which motivated the present study, is that comparisons on analytic or
-untrained denoisers need not transfer to trained ones; a companion study shows that the
-probe's reliability is itself an emergent property of training~\cite{challagundla2025probe}.
-\textbf{Status of TAP.} TAP (arXiv:2603.03792) has no released implementation at the time
-of writing. Every TAP-specific claim here rests on our faithful reconstruction of its
-probe-then-select mechanism, so we evaluate the mechanism rather than a particular codebase.
+diffusion~\cite{song2019generative,song2021sde}. \textbf{A pitfall in evaluation.} These
+methods are usually compared by output quality at the same compute. One recurring problem,
+which we make explicit and which led to this study, is that comparisons made on simple or
+untrained denoisers may not carry over to trained ones; a companion study shows that the
+probe only becomes reliable through training~\cite{challagundla2025probe}. \textbf{Status of
+TAP.} TAP (arXiv:2603.03792) has no released code as of writing. Everything we report about
+TAP comes from our own faithful rebuild of its probe-then-select method, so we test the
+method rather than a specific codebase.
 
 \section{Positioning of Latent-TAP}\label{sec:positioning}
-Training-free accelerators can be organised along two axes: the granularity of the caching
-decision (a global schedule, a per-timestep gate, a per-sample gate, or a per-token gate),
-and the sophistication of the reconstruction (direct feature reuse, reuse with rescaling,
-Taylor forecasting, or selection from a predictor family). Figure~\ref{fig:landscape} places
-representative methods in this space, and Table~\ref{tab:positioning} lists their mechanisms
-together with the backbone and speedup each reports. Latent-TAP occupies the most
-fine-grained and most expressive corner: it selects, per token, among a family of
-extrapolators, using the first-layer probe as the gating signal. This position is shared
-with TAP, which has no public implementation; the present study contributes an open
-reimplementation and, more importantly, an exact testbed in which the assumptions underlying
-this corner can be measured rather than assumed. Because Latent-TAP is evaluated on an
-analytic denoiser, its fidelity is reported as a paired energy distance to the full sampler
-(Table~\ref{tab:core}) rather than as a backbone FID; it is therefore not placed on the
-speedup axis of Figure~\ref{fig:landscape}(b).
+Training-free accelerators differ along two axes: how fine-grained the caching decision is
+(a global schedule, a per-timestep choice, a per-sample choice, or a per-token choice), and
+how much work the rebuild does (plain feature reuse, reuse with rescaling, Taylor
+prediction, or picking from a set of predictors). Figure~\ref{fig:landscape} places the main
+methods in this space, and Table~\ref{tab:positioning} lists what each one does along with
+the model and speedup it reports. Latent-TAP sits in the finest and most capable corner: for
+each token it picks from a set of predictors, using the first-layer probe to decide. TAP
+shares this corner but has no public code; this study adds an open rebuild and, more
+importantly, an exact testbed where we can check the assumptions behind this corner instead
+of taking them on faith. Because Latent-TAP runs on a simple analytic denoiser, we report
+its quality as a paired energy distance to the full sampler (Table~\ref{tab:core}) rather
+than a model FID, so it does not appear on the speedup axis of Figure~\ref{fig:landscape}(b).
 
 \begin{figure*}[t]\centering
 \includegraphics[width=0.99\textwidth]{fig_landscape.png}
 \caption{\textbf{Positioning of Latent-TAP among training-free diffusion accelerators.}
-\textbf{(a)} Design space: decision granularity (coarse to fine) against reconstruction
-sophistication (simple to expressive). Latent-TAP (star) selects per token from a predictor
-family, the finest and most expressive corner, a position shared with the code-less TAP.
-\textbf{(b)} Latency speedups reported by each method, annotated with the backbone and
-threshold at which they were obtained. These figures are drawn from the respective papers,
-are not iso-quality or iso-backbone, and are shown only to situate the landscape; Latent-TAP
-is evaluated on an analytic testbed and is not directly comparable, so it is omitted from
-this panel.}
+\textbf{(a)} Design space: how fine-grained the decision is (coarse to fine) against how much
+work the rebuild does (simple to capable). Latent-TAP (star) picks per token from a set of
+predictors, the finest and most capable corner, which it shares with the code-less TAP.
+\textbf{(b)} Speedups reported by each method, labelled with the model and setting they were
+measured on. These numbers come from the respective papers, use different models and quality
+levels, and are shown only to place the methods; Latent-TAP runs on an analytic testbed and
+is not directly comparable, so it is left out of this panel.}
 \label{fig:landscape}
 \end{figure*}
 
 \begin{table*}[t]\centering\footnotesize
 \setlength{\tabcolsep}{5pt}
-\caption{Latent-TAP relative to representative training-free diffusion accelerators.
-Reconstruction, granularity, and gating signal are taken from each method's paper. Reported
-speedups are latency figures at each method's own backbone and quality threshold and are
-\emph{not} directly comparable; they situate the design space rather than rank methods.
-$^\dagger$ reported qualitatively or setting-dependent in the source. $^\ddagger$ Latent-TAP
-is evaluated on an exact-residual analytic testbed via paired energy distance to the full
-sampler, so no comparable backbone speedup/FID is available.}
+\caption{Latent-TAP next to the main training-free diffusion accelerators. Reconstruction,
+granularity, and gating signal come from each method's paper. Reported speedups are measured
+on each method's own model and quality setting and are \emph{not} directly comparable; they
+place the methods rather than rank them. $^\dagger$ reported loosely or setting-dependent in
+the source. $^\ddagger$ Latent-TAP is measured on an analytic testbed as a paired energy
+distance to the full sampler, so no comparable model speedup or FID is available.}
 \label{tab:positioning}
 \begin{tabular}{@{}llllcl@{}}
 \toprule
@@ -328,22 +319,22 @@ TAP~\cite{tap2026}                  & selected family & token & first-layer prob
 \end{table*}
 
 \section{The exact-residual testbed}\label{sec:testbed}
-Proxy fidelity cannot be measured directly on a trained network, since computing the true
-skipped output would negate the acceleration it is intended to provide. We therefore adopt a
-prior for which the exact denoiser is available in closed form. Data are drawn from a
-$K$-component isotropic Gaussian
+We cannot measure proxy fidelity directly on a trained network, because computing the true
+skipped output would cancel the speedup we are trying to get. So we use a data distribution
+for which the exact denoiser is known in closed form. Data are drawn from a $K$-component
+isotropic Gaussian
 mixture in $\mathbb R^d$; under the variance-preserving forward process $x_t=\sqrt{\bar
 \alpha_t}\,x_0+\sqrt{1-\bar\alpha_t}\,\varepsilon$ the posterior mean is exactly
 \begin{equation}
 O_t \equiv \mathbb E[x_0\mid x_t]=\sum_{k=1}^{K} r_k(x_t,t)\,\big[\mu_k+c_t\,(x_t-\sqrt{\bar\alpha_t}\mu_k)\big],
 \end{equation}
 with responsibilities $r_k\!\propto\! w_k\,\mathcal N\!\big(x_t;\sqrt{\bar\alpha_t}\mu_k,(\bar\alpha_t\sigma^2{+}1{-}\bar\alpha_t)I\big)$
-and $c_t=\sqrt{\bar\alpha_t}\sigma^2/(\bar\alpha_t\sigma^2{+}1{-}\bar\alpha_t)$. This
-constitutes the computationally expensive output. The cheap \emph{probe} $h_t$ is the
-hard-assignment denoiser, retaining only the $\arg\max_k r_k$ term; it serves as the
-analogue of a shallow first-layer readout operating on an approximate rather than exact
-decision. Tokens are i.i.d.\ draws sharing the mixture, and DDIM steps use $O$ at anchor
-steps and a predicted $\hat O$ at skipped steps (Fig.~\ref{fig:arch}).
+and $c_t=\sqrt{\bar\alpha_t}\sigma^2/(\bar\alpha_t\sigma^2{+}1{-}\bar\alpha_t)$. This is the
+expensive output. The cheap \emph{probe} $h_t$ is the hard-assignment version of the
+denoiser, which keeps only the top component (the $\arg\max_k r_k$ term). It stands in for a
+shallow first-layer readout that sees an approximate, not exact, decision. Tokens are
+i.i.d.\ draws from the mixture, and DDIM steps use $O$ at anchor steps and a predicted
+$\hat O$ at skipped steps (Fig.~\ref{fig:arch}).
 
 \textbf{Predictors.} A family of $8$: fixed finite-difference Taylor extrapolators of order
 $0$--$2$ at horizons $1$--$2$, plus online least-squares fits (degree $2$--$3$ over windows
@@ -352,43 +343,40 @@ outputs ($\hat O_i$) and cached probes ($\hat h_i$); the selector picks per toke
 $\hat\imath=\arg\min_i d_\mu(\hat h_i,h_t)$ for proxy $\mu\in\{\cos,L_2,L_1\}$ and applies
 $\hat O_{\hat\imath}$. \textbf{Oracle} instead minimises the true error $\|\hat
 O_i-O_t\|_2$. \textbf{Metrics.} (a) the rank correlation between proxy error and true error
-across the predictor family, which measures whether the proxy orders the predictors
-correctly; and (b) the energy distance~\cite{szekely2013energy} between the accelerated and
-full samplers' final samples, which measures end-to-end distributional fidelity. We use
-$12$ seeds for the core study and $5$ per regime cell, with bootstrap $95\%$ confidence
-intervals throughout.
+across the predictor family, which tells us whether the proxy puts the predictors in the
+right order; and (b) the energy distance~\cite{szekely2013energy} between the final samples
+of the accelerated and full samplers, which tells us how close the two output distributions
+are. We use $12$ seeds for the core study and $5$ per regime cell, with bootstrap $95\%$
+confidence intervals throughout.
 
 \section{Optimality of greedy per-token selection}\label{sec:theory}
-Let $f_n(i)$ be the true reconstruction error of predictor $i$ on token $n$ at a skipped
-step. TAP minimises $\sum_n f_n(\pi_n)$ over assignments $\pi$. Three properties hold: the
-objective is \emph{separable} (token $n$'s cost depends only on $\pi_n$), the choices are
-\emph{equal-cost} (every predictor is one cheap extrapolation; no shared budget), and the
-feasible set is a \emph{product} set. Hence
+Let $f_n(i)$ be the true error of predictor $i$ on token $n$ at a skipped step. TAP
+minimises the total error $\sum_n f_n(\pi_n)$ over choices $\pi$. Three things hold: the
+total splits across tokens (token $n$'s cost depends only on its own choice $\pi_n$), every
+predictor costs the same (one cheap extrapolation, with no shared budget), and any token may
+take any predictor. Hence
 \begin{equation}
 \min_{\pi}\ \sum_{n} f_n(\pi_n)\;=\;\sum_n \min_i f_n(i),
 \end{equation}
-so greedy per-token selection attains the global optimum. A regret bound or knapsack
-formulation over the joint assignment therefore addresses a problem with no optimality gap,
-which was the error in the pilot's original framing. The relevant regret is not
-combinatorial but statistical: the true errors $f_n(i)$ are never observed; instead we
-observe a proxy $g_n(i)=d_\mu(\hat
-h_i,h)$ and deploy $\hat\pi_n=\arg\min_i g_n(i)$. The excess error $\mathbb E[f_n(\hat
-\pi_n)-\min_i f_n(i)]$ is governed entirely by the rank agreement between $g$ and $f$. The
-quantities that can reduce this excess error are a more informative metric $\mu$ or a richer
-probe $h$.
+so picking the best predictor for each token on its own already gives the lowest total
+error. A regret bound or knapsack version of the joint choice therefore solves a problem
+that has no gap to close, which was the mistake in the early framing. The real difficulty is
+not the choice but the measurement: we never see the true errors $f_n(i)$. Instead we see a
+proxy $g_n(i)=d_\mu(\hat h_i,h)$ and use $\hat\pi_n=\arg\min_i g_n(i)$. The extra error
+$\mathbb E[f_n(\hat\pi_n)-\min_i f_n(i)]$ depends only on how well the proxy order $g$
+matches the true order $f$. The only two things that can lower it are a better distance
+$\mu$ or a richer probe $h$.
 
-\textbf{Why $L_2$ tracks the residual more faithfully than cosine.} The true error is an
-$L_2$ residual $\|\hat O_i-O\|_2$, whereas cosine measures only the angle and discards
-magnitude, $d_{\cos}=1-\langle\hat h_i,h\rangle/(\|\hat h_i\|\,\|h\|)$. When predictors
-differ mainly in the degree to which they over- or under-shoot, which is the dominant
-failure mode as the extrapolation horizon grows, the discriminating signal is radial;
-cosine is insensitive to this component, whereas $L_2$ and $L_1$ retain it. When the
-probe-to-output map is locally affine near the anchors, magnitude ordering is approximately
-preserved, and the $L_2$ proxy is the better-aligned surrogate. This account predicts that
-the $L_2$ advantage should increase with acceleration and noise, both of which enlarge the
-radial error, a prediction the sweep confirms (\S\ref{sec:sweep}). We present this as a
-mechanism rather than a theorem; the corresponding inequality holds empirically in all $21$
-regimes.
+\textbf{Why $L_2$ follows the true error better than cosine.} The true error is an $L_2$
+distance $\|\hat O_i-O\|_2$, while cosine looks only at the angle and ignores size,
+$d_{\cos}=1-\langle\hat h_i,h\rangle/(\|\hat h_i\|\,\|h\|)$. When predictors differ mainly in
+how much they over- or under-shoot, which is what usually goes wrong as the prediction
+reaches further ahead, the useful signal is in the size, and cosine misses it, while $L_2$
+and $L_1$ keep it. When the map from probe to output is roughly linear near the anchors, the
+ordering by size is roughly kept, so the $L_2$ distance is the closer match. This predicts
+that the $L_2$ gain should grow with more skipping and more noise, both of which make the
+size error larger, and the sweep confirms this (\S\ref{sec:sweep}). We give this as an
+explanation, not a theorem; the matching inequality holds in all $21$ settings.
 
 % =========================== WORKFLOW DIAGRAM ===========================
 \begin{figure*}[t]\centering
@@ -433,11 +421,11 @@ regimes.
 \draw[a] (sweep) -- (pt);
 \draw[a] (pt.south) |- (v.east);
 \end{tikzpicture}}
-\caption{\textbf{Experimental workflow.} The exact testbed feeds a $12$-seed core study
-that isolates three questions (Q1--Q3); each is then stress-tested across a $21$-regime
-sweep and a pre-registered $30$-test adversarial suite. Every comparison is paired and
-bootstrapped. The overall conclusion is negative: only the $L_2$ proxy holds, and it is
-small; the operative quantity is proxy fidelity, determined by probe richness.}
+\caption{\textbf{Experimental workflow.} The exact testbed feeds a $12$-seed core study that
+asks three questions (Q1--Q3); each is then tested across a $21$-setting sweep and a
+pre-registered $30$-test suite. Every comparison is paired and uses bootstrap CIs. The
+overall result is negative: only the $L_2$ distance helps, and only a little; what matters
+most is proxy fidelity, which depends on how rich the probe is.}
 \label{fig:flow}
 \end{figure*}
 
@@ -466,100 +454,90 @@ energy: oracle & 0.0112 & $-0.005\,(-.007,-.003)$\\
 \end{table}
 
 \section{Core results}\label{sec:core}
-Table~\ref{tab:core} summarises the core study. The $L_2$ proxy improves rank fidelity and
-top-$1$ selection accuracy over cosine; the difference is statistically reliable (the
-confidence interval excludes zero) but modest, amounting to a $5\%$ relative gain in
-Spearman correlation rather than the roughly fourfold gain suggested by the single-seed
-pilot. $L_1$ performs equivalently to $L_2$, confirming that the improvement derives from
-the use of magnitude information rather than from cosine specifically. The
-online-least-squares family is consistently worse than fixed Taylor, and combining the two
-families does not improve on Taylor alone. Probe-then-select is outperformed by the best
-fixed predictor in this setting ($+0.004$ in energy distance), yet the oracle selector
-clearly outperforms the naive baseline ($-0.005$): the headroom is genuine, but the probe
-proxy is too weak to realise it. The limiting factor is therefore proxy fidelity, not the
-predictor family or the selection rule.
+Table~\ref{tab:core} shows the core study. The $L_2$ distance ranks predictors better than
+cosine and picks the best one more often; the gain is real (the confidence interval does not
+include zero) but small, a $5\%$ relative gain in Spearman, not the roughly fourfold gain
+from the early run. $L_1$ does as well as $L_2$, which confirms that what helps is using
+size, not cosine itself. The online-least-squares predictors are worse than fixed Taylor
+ones, and adding them to the Taylor set does not help. Picking per token with the probe does
+worse than the best fixed predictor here ($+0.004$ in energy distance), yet an oracle that
+knows the true errors clearly beats the naive baseline ($-0.005$): the room to improve is
+real, but the probe is too weak to use it. So the limit is proxy fidelity, not the predictor
+set or the choice rule.
 
 \begin{figure*}[t]\centering
 \includegraphics[width=0.98\textwidth]{fig_v2.png}
-\caption{\textbf{(a)} Acceleration--fidelity trade-off: probe-then-select tracks the naive
-best-fixed predictor until high stride, where it separates toward the oracle.
-\textbf{(b)} The $L_2$ proxy advantage over cosine is small but positive in all $21$
-regimes, widening with acceleration and noise. \textbf{(c)} Probe adaptivity is beneficial
-only at aggressive acceleration (probe$-$naive crosses below $0$ at stride $8$), where the
-selection headroom (naive$-$oracle) is largest. \textbf{(d)} Proxy fidelity increases
-monotonically with probe richness, from a shallow hard probe ($0.33$) to the full output
-($1.0$); this is the axis along which a trained DiT probe would improve.}
+\caption{\textbf{(a)} Speed vs.\ quality: picking per token with the probe follows the naive
+best-fixed predictor until high stride, where it pulls toward the oracle.
+\textbf{(b)} The $L_2$ gain over cosine is small but positive in all $21$ settings, and
+grows with more skipping and more noise. \textbf{(c)} Per-token choice helps only when
+skipping is aggressive (probe$-$naive drops below $0$ at stride $8$), which is where the room
+to improve (naive$-$oracle) is largest. \textbf{(d)} A richer probe ranks predictors better,
+rising steadily from a shallow hard probe ($0.33$) to the full output ($1.0$); a trained DiT
+probe would sit higher along this axis.}
 \label{fig:v2}
 \end{figure*}
 
 \section{Sensitivity across regimes}\label{sec:sweep}
-We vary acceleration (cache stride $2$ to $8$), dimension ($2$ to $32$), mixture separation,
-noise scale, and component count $K$, giving $21$ regimes with $5$ seeds each
-(Fig.~\ref{fig:v2}). \textbf{The $L_2$ advantage is universal but small.} It is positive and
-significant in all $21$ regimes, increasing from $+0.012$ at mild settings to $+0.034$ at
-stride $8$ and $+0.024$ at high noise, consistent with the radial-error mechanism.
-\textbf{Online predictors never win.} Taylor is significantly better in $19/21$ regimes and
-online in none; the best single fixed predictor is a Taylor extrapolator in every regime.
-\textbf{Probe adaptivity is confined to the aggressive-acceleration regime.}
-Probe-then-select outperforms the naive best-fixed predictor in exactly one regime, stride
-$8$, where fixed extrapolation degrades sufficiently that per-token switching becomes
-worthwhile (probe$-$naive $=-0.074$). In all milder regimes the two curves coincide
-(Fig.~\ref{fig:v2}a), so the gains of adaptive caching at moderate speedups are attributable
-to the acceleration rather than the adaptivity. Selection headroom increases with
-acceleration (Fig.~\ref{fig:v2}c), so the aggressive regimes are precisely those in which a
-better proxy would be most valuable. \textbf{Proxy fidelity is the operative factor.}
-Replacing the shallow hard probe with a richer top-$m$ soft readout increases rank fidelity
-monotonically, from $0.33$ to $0.68$, $0.73$, and $1.0$ (Fig.~\ref{fig:v2}d). A trained
-DiT's learned first-layer probe lies substantially higher on this curve (our companion study
-measures Spearman ${\approx}0.77$~\cite{challagundla2025probe}), so the testbed lower-bounds
-the probe's value and the measured $L_2$ advantage is a conservative estimate.
+We vary skipping (cache stride $2$ to $8$), dimension ($2$ to $32$), how far apart the
+mixture components are, the noise scale, and the number of components $K$, giving $21$
+settings with $5$ seeds each (Fig.~\ref{fig:v2}). \textbf{The $L_2$ gain shows up everywhere
+but stays small.} It is positive and significant in all $21$ settings, growing from $+0.012$
+at mild settings to $+0.034$ at stride $8$ and $+0.024$ at high noise, which matches the
+size-error explanation. \textbf{Online predictors never win.} Taylor is better in $19/21$
+settings and online in none; the best single fixed predictor is a Taylor one in every
+setting. \textbf{Per-token choice helps only when skipping is aggressive.} Picking per token
+with the probe beats the naive best-fixed predictor in just one setting, stride $8$, where
+fixed predictors get bad enough that switching per token pays off (probe$-$naive $=-0.074$).
+In all milder settings the two curves lie on top of each other (Fig.~\ref{fig:v2}a), so the
+gains of ``adaptive'' caching at moderate speedups come from the speedup, not the per-token
+choice. The room to improve grows with skipping (Fig.~\ref{fig:v2}c), so the aggressive
+settings are exactly where a better probe would help most. \textbf{What matters is proxy
+fidelity.} Giving the probe more information (a richer top-$m$ soft readout) makes its
+ranking steadily better, from $0.33$ to $0.68$, $0.73$, and $1.0$ (Fig.~\ref{fig:v2}d). A
+trained DiT's learned first-layer probe sits much higher on this curve (our companion study
+measures Spearman ${\approx}0.77$~\cite{challagundla2025probe}), so our testbed gives a lower
+bound and the $L_2$ gain we measure is on the safe side.
 
 \section{Adversarial test suite}
-We pre-registered $30$ tests, each designed to falsify a claim: testbed-correctness checks
-(exact-denoiser limits, $\mathrm{energy}(\text{full},\text{full}){=}0$, and absence of
-true-error leakage into selection), the multi-seed core comparisons, the $21$-regime
-crossovers, monotonicity of the acceleration--fidelity trade-off, monotonicity of a
-budget/abstaining selector in the compute--fidelity plane, and the probe-richness curve. The
-suite yields \textbf{$26$ passes, $0$ failures, and $4$ qualifying notes}: the $L_2$
-improvement is small rather than fourfold; the absolute proxy Spearman correlation is only
-moderate; the end-to-end quality gain of $L_2$ over cosine at the selection level is
-negligible; and at mild acceleration the acceleration, not the adaptivity, accounts for the
-measured gains. No test designed to falsify a surviving claim succeeded, and the two retired
-proposals failed precisely the tests intended to detect them.
+We pre-registered $30$ tests, each meant to break a claim: correctness checks on the testbed
+(exact-denoiser limits, $\mathrm{energy}(\text{full},\text{full}){=}0$, and no leakage of the
+true error into the choice), the multi-seed core comparisons, the $21$-setting crossovers,
+the speed--quality curve going the right way, a budget selector trading compute for quality
+in the right direction, and the probe-richness curve. The suite gives \textbf{$26$ passes,
+$0$ failures, and $4$ notes}: the $L_2$ gain is small rather than fourfold; the raw proxy
+Spearman is only moderate; the end-to-end quality gain of $L_2$ over cosine is tiny; and at
+mild skipping the speedup, not the per-token choice, explains the gains. No test broke a
+claim that we keep, and the two ideas we dropped failed exactly the tests meant to catch
+them.
 
 \section{Discussion}
-The results are predominantly negative. Of the three proposed improvements to a
-token-adaptive predictor, one (online predictors) provides no benefit, one (probe
-adaptivity) is beneficial only in the aggressive-acceleration regime, and one (the $L_2$
-proxy) yields a small but reliable improvement attributable to the use of magnitude
-information. These observations are unified by the fact that TAP's selection is already
-optimal given the true errors, so the operative quantity is proxy fidelity, determined by
-the choice of metric and, to a greater extent, by the richness of the probe. This reframes
-the problem from method tuning to measurement, which the exact-residual testbed makes
-tractable.
+Most of the results are negative. Of the three ideas, one (online predictors) does not help,
+one (per-token choice) helps only when skipping is aggressive, and one (the $L_2$ distance)
+gives a small but steady gain because it uses size. They fit together once we see that TAP's
+choice is already optimal given the true errors: what is left to improve is proxy fidelity,
+set by the distance and, even more, by how rich the probe is. This turns the problem from
+tuning the method into measuring the probe, which our exact testbed makes easy.
 
 \section{Limitations}
-The denoiser is an analytic Gaussian mixture rather than a trained network, and the probe is
-a shallow hard-assignment readout. Both choices ensure that the ground truth is computable,
-but both render the probe a weaker ranker than a trained DiT's learned first layer
-(Fig.~\ref{fig:v2}d and \cite{challagundla2025probe}). The absolute energy-distance
-magnitudes are testbed-specific, so all conclusions rely on paired, within-regime
-comparisons. TAP provides no public code, so we evaluate the mechanism rather than a
-reference implementation. Whether the small $L_2$ advantage and the aggressive-acceleration
-probe benefit increase or diminish on large latent DiTs remains open and requires
-computational resources beyond those used here.
+Our denoiser is a simple Gaussian mixture, not a trained network, and the probe is a shallow
+hard readout. These choices let us compute the true answer, but they also make the probe a
+weaker ranker than a trained DiT's learned first layer (Fig.~\ref{fig:v2}d
+and~\cite{challagundla2025probe}). The energy-distance values depend on the testbed, so all
+our conclusions use paired comparisons within the same setting. TAP has no public code, so we
+test the method, not a specific implementation. Whether the small $L_2$ gain and the
+aggressive-skipping probe benefit grow or shrink on large latent DiTs is still open and needs
+more compute than we had.
 
 \section{Conclusion}
-We evaluated three proposed improvements to a training-free diffusion predictor and found
-that most do not hold. Under multi-seed, multi-regime testing, online predictors do not
-outperform fixed Taylor extrapolators, probe adaptivity is beneficial only at aggressive
-acceleration, and the $L_2$ proxy provides a small but reliable improvement over cosine
-because it retains the magnitude information on which the true residual depends. Since
-per-token selection is provably optimal, the only quantity that scales is proxy fidelity,
-which is determined by the metric and, to a greater extent, by the richness of the probe.
-We recommend that such methods be evaluated on trained networks using
-fidelity-to-base-model metrics, and that the probe, rather than the selection rule, be the
-primary target for improvement.
+We tested three ideas for improving a training-free diffusion predictor and found that most
+do not hold. Across many seeds and settings, online predictors do not beat fixed Taylor
+ones, per-token choice helps only when skipping is aggressive, and the $L_2$ distance gives a
+small but steady gain over cosine because it keeps the size information the true error
+depends on. Since per-token choice is already optimal, the only thing that scales is proxy
+fidelity, set by the distance and, even more, by how rich the probe is. We suggest testing
+these methods on trained networks with fidelity-to-base-model scores, and improving the
+probe rather than the choice rule.
 
 {\small\textbf{Reproducibility.} All code and results run locally in pure NumPy:
 \code{latap\_v2.py} (testbed), \code{run\_core.py}/\code{agg\_core.py} ($12$-seed core),
