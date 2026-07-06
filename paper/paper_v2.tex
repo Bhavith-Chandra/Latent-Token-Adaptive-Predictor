@@ -138,6 +138,9 @@ results are released.}
    {\textbf{probe$\rightarrow$select}\\rank $d_\mu(\hat h_i,h_t)$\\{\scriptsize $\mu\!\in\!\{\cos,L_2,L_1\}$}\\$\hat\imath\!=\!\arg\min_i$\\emit $\hat O_{\hat\imath}$};
 \node[aux,text width=28mm] (orc) at (14.15,3.3) {\emph{oracle} bound (n/a)\\rank $\|\hat O_i-O_t\|_2$};
 \node[st,text width=32mm] (ddim) at (8.1,-4.15) {DDIM update\ $x_t\!\rightarrow\!x_{t-1}$};
+% Latent-TAP locus marker
+\node[font=\scriptsize\bfseries,text=cExpLn] (ltaptag) at (14.15,1.85) {\ding{72}\,Latent-TAP (this work)};
+\draw[cExpLn,line width=0.5pt] (ltaptag.south) -- (dec.north);
 % --- expensive lane (red) ---
 \draw[ax] (xt.north) |- (D.west);
 \draw[ax] (D) -- (Oc);
@@ -267,6 +270,63 @@ probe's reliability is itself an emergent property of training~\cite{challagundl
 of writing. Every TAP-specific claim here rests on our faithful reconstruction of its
 probe-then-select mechanism, so we evaluate the mechanism rather than a particular codebase.
 
+\section{Positioning of Latent-TAP}\label{sec:positioning}
+Training-free accelerators can be organised along two axes: the granularity of the caching
+decision (a global schedule, a per-timestep gate, a per-sample gate, or a per-token gate),
+and the sophistication of the reconstruction (direct feature reuse, reuse with rescaling,
+Taylor forecasting, or selection from a predictor family). Figure~\ref{fig:landscape} places
+representative methods in this space, and Table~\ref{tab:positioning} lists their mechanisms
+together with the backbone and speedup each reports. Latent-TAP occupies the most
+fine-grained and most expressive corner: it selects, per token, among a family of
+extrapolators, using the first-layer probe as the gating signal. This position is shared
+with TAP, which has no public implementation; the present study contributes an open
+reimplementation and, more importantly, an exact testbed in which the assumptions underlying
+this corner can be measured rather than assumed. Because Latent-TAP is evaluated on an
+analytic denoiser, its fidelity is reported as a paired energy distance to the full sampler
+(Table~\ref{tab:core}) rather than as a backbone FID; it is therefore not placed on the
+speedup axis of Figure~\ref{fig:landscape}(b).
+
+\begin{figure*}[t]\centering
+\includegraphics[width=0.99\textwidth]{fig_landscape.png}
+\caption{\textbf{Positioning of Latent-TAP among training-free diffusion accelerators.}
+\textbf{(a)} Design space: decision granularity (coarse to fine) against reconstruction
+sophistication (simple to expressive). Latent-TAP (star) selects per token from a predictor
+family, the finest and most expressive corner, a position shared with the code-less TAP.
+\textbf{(b)} Latency speedups reported by each method, annotated with the backbone and
+threshold at which they were obtained. These figures are drawn from the respective papers,
+are not iso-quality or iso-backbone, and are shown only to situate the landscape; Latent-TAP
+is evaluated on an analytic testbed and is not directly comparable, so it is omitted from
+this panel.}
+\label{fig:landscape}
+\end{figure*}
+
+\begin{table*}[t]\centering\footnotesize
+\setlength{\tabcolsep}{5pt}
+\caption{Latent-TAP relative to representative training-free diffusion accelerators.
+Reconstruction, granularity, and gating signal are taken from each method's paper. Reported
+speedups are latency figures at each method's own backbone and quality threshold and are
+\emph{not} directly comparable; they situate the design space rather than rank methods.
+$^\dagger$ reported qualitatively or setting-dependent in the source. $^\ddagger$ Latent-TAP
+is evaluated on an exact-residual analytic testbed via paired energy distance to the full
+sampler, so no comparable backbone speedup/FID is available.}
+\label{tab:positioning}
+\begin{tabular}{@{}llllcl@{}}
+\toprule
+Method & Reconstruction & Granularity & Gating signal & Code & Reported speedup (backbone)\\
+\midrule
+DeepCache~\cite{ma2024deepcache}    & reuse & schedule & fixed & \checkmark & $2.3\times$ (SD-1.5)\\
+FORA~\cite{selvaraju2024fora}       & reuse & schedule & fixed interval & \checkmark & several$\times$ (DiT)$^\dagger$\\
+TeaCache~\cite{liu2024teacache}     & reuse\,+\,rescale & timestep & timestep-emb.\ indicator & \checkmark & $1.5$--$2.1\times$ (FLUX, HunyuanVideo)\\
+DiCache~\cite{dicache2025}          & reuse\,+\,align & sample & shallow online probe & \checkmark & state of the art$^\dagger$ (FLUX, WAN\,2.1)\\
+ToCa~\cite{zou2024toca}             & reuse (token) & token & token-selection scores & \checkmark & $1.5$--$2.4\times$ (PixArt-$\alpha$, OpenSora)\\
+TaylorSeer~\cite{taylorseer2025}    & Taylor forecast & timestep & fixed order & \checkmark & $3.5\times$ latency (FLUX)\\
+TAP~\cite{tap2026}                  & selected family & token & first-layer probe (cosine) & \ding{55} & --- (no public code)\\
+\rowcolor{black!8}
+\textbf{Latent-TAP} (this work)     & selected family & token & first-layer probe ($L_2$/cos) & \checkmark & analytic testbed$^\ddagger$\\
+\bottomrule
+\end{tabular}
+\end{table*}
+
 \section{The exact-residual testbed}\label{sec:testbed}
 Proxy fidelity cannot be measured directly on a trained network, since computing the true
 skipped output would negate the acceleration it is intended to provide. We therefore adopt a
@@ -339,6 +399,7 @@ regimes.
   \fill[cZone,rounded corners=6pt] (-1.35,-2.15) rectangle (16.75,2.35);
   \draw[cZoneLn,rounded corners=6pt,line width=0.6pt] (-1.35,-2.15) rectangle (16.75,2.35);
 \end{scope}
+\node[font=\scriptsize\bfseries,text=cExpLn,anchor=south west] at (-1.3,2.5) {\ding{72}\,Method under study: Latent-TAP};
 % --- numbered stages ---
 \node[st,text width=24mm] (tb)   at (0,0)     {\textbf{\ding{182}\ \ testbed}\\{\scriptsize exact-residual}\\{\scriptsize closed-form $O_t$}};
 \node[st,text width=24mm] (core) at (3.5,0)   {\textbf{\ding{183}\ \ core study}\\{\scriptsize $12$ seeds}\\{\scriptsize bootstrap $95\%$ CIs}};
@@ -388,16 +449,16 @@ sampler (lower is better); paired differences with $95\%$ bootstrap CIs.}
 \toprule
 quantity & value & paired CI\\
 \midrule
-proxy Spearman, cosine & 0.315 & ---\\
+proxy Spearman, cosine & 0.315 & \textit{ref.}\\
 proxy Spearman, $L_2$ & 0.331 & $+0.016\,(+.014,+.019)$\\
-top-1 pick acc, cosine & 0.393 & ---\\
+top-1 pick acc, cosine & 0.393 & \textit{ref.}\\
 top-1 pick acc, $L_2$ & 0.421 & $+0.028\,(+.024,+.032)$\\
 \midrule
-energy: Taylor family & 0.0210 & ---\\
+energy: Taylor family & 0.0210 & \textit{ref.}\\
 energy: online family & 0.0249 & $-0.004\,(-.006,-.002)$\\
 \midrule
-energy: random select & 0.0281 & ---\\
-energy: naive best-fixed & 0.0164 & ---\\
+energy: random select & 0.0281 & \textit{ref.}\\
+energy: naive best-fixed & 0.0164 & \textit{ref.}\\
 energy: probe-then-select & 0.0207 & $+0.004\,(+.002,+.006)$\\
 energy: oracle & 0.0112 & $-0.005\,(-.007,-.003)$\\
 \bottomrule

@@ -56,6 +56,31 @@ lever that scales is a better/richer probe, not a cleverer selection rule.
 **(c)** probe adaptivity only pays at aggressive acceleration •
 **(d)** proxy fidelity rises with probe richness (0.33 → 1.0).
 
+## Positioning vs. related methods
+
+![positioning](figures/fig_landscape.png)
+
+Latent-TAP occupies the finest-granularity, most-expressive corner of the design space
+(per-token selection from a predictor family). The table below is drawn from each method's
+own paper. Reported speedups are latency figures at each method's own backbone and quality
+threshold and are **not** directly comparable; they situate the landscape rather than rank
+methods.
+
+| Method | Reconstruction | Granularity | Gating signal | Code | Reported speedup (backbone) |
+|---|---|---|---|:---:|---|
+| DeepCache | reuse | schedule | fixed | ✓ | 2.3× (SD-1.5) |
+| FORA | reuse | schedule | fixed interval | ✓ | several× (DiT) † |
+| TeaCache | reuse + rescale | timestep | timestep-embedding indicator | ✓ | 1.5–2.1× (FLUX, HunyuanVideo) |
+| DiCache | reuse + align | sample | shallow online probe | ✓ | state of the art † (FLUX, WAN 2.1) |
+| ToCa | reuse (token) | token | token-selection scores | ✓ | 1.5–2.4× (PixArt-α, OpenSora) |
+| TaylorSeer | Taylor forecast | timestep | fixed order | ✓ | 3.5× latency (FLUX) |
+| TAP | selected family | token | first-layer probe (cosine) | ✗ | — (no public code) |
+| **Latent-TAP (this work)** | selected family | token | first-layer probe (L2/cos) | ✓ | analytic testbed ‡ |
+
+† reported qualitatively or setting-dependent in the source.
+‡ Latent-TAP is evaluated on an exact-residual analytic testbed via paired energy distance
+to the full sampler, so no comparable backbone speedup/FID is available.
+
 ## Repository layout
 
 ```
