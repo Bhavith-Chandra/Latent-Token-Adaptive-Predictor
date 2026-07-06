@@ -3,7 +3,7 @@
 **What actually helps a training-free diffusion predictor? A falsification study of
 token-adaptive prediction on an exact-residual testbed.**
 
-Bhavith Chandra Challagundla — [Bhavith-Chandra.github.io](https://Bhavith-Chandra.github.io)
+Bhavith Chandra Challagundla. [Bhavith-Chandra.github.io](https://Bhavith-Chandra.github.io)
 
 📄 **Paper:** [`paper/Latent-TAP-v2_paper.pdf`](paper/Latent-TAP-v2_paper.pdf)
 &nbsp;•&nbsp; Companion study: [`paper/Probe-Emergence_paper.pdf`](paper/Probe-Emergence_paper.pdf)
@@ -14,12 +14,13 @@ Bhavith Chandra Challagundla — [Bhavith-Chandra.github.io](https://Bhavith-Cha
 
 Training-free diffusion accelerators (TAP, TeaCache, ToCa, DiCache, TaylorSeer, FORA)
 reconstruct skipped network outputs from cached features, choosing *which* cheap predictor
-to trust — per token — by reading a first-layer **probe** and ranking predictors with a
+to trust, per token, by reading a first-layer **probe** and ranking predictors with a
 cosine proxy. A single-seed pilot of ours suggested three improvements. This repository is
 the adversarial follow-up that tries to **break** them. Most do not survive.
 
-On an **exact-residual Gaussian-mixture testbed** — where the true denoiser output is
-closed-form (Tweedie), so every predictor's true error is known without a trained network —
+On an **exact-residual Gaussian-mixture testbed**, in which the true denoiser output is
+closed-form (Tweedie) and every predictor's true error is therefore known without a trained
+network,
 we run a 12-seed core study, a 21-regime sweep, and a pre-registered 30-test suite, all with
 bootstrap 95% CIs.
 
@@ -30,7 +31,7 @@ bootstrap 95% CIs.
 | **Probe-then-select > naive best-fixed** | only at **aggressive acceleration** | Beats naive in **1/21** regimes (stride 8); elsewhere the *speedup*, not the adaptivity, drives gains |
 
 **The reframing.** TAP's per-token selection is separable, equal-cost, and unconstrained,
-so greedy selection is *already the global optimum* — there is no selection-optimization gap
+so greedy selection is *already the global optimum*, and there is no selection-optimization gap
 to close. The real object is **proxy fidelity**: an oracle selector leaves headroom the probe
 cannot capture, and fidelity rises monotonically with **probe richness** (0.33 → 1.0). The
 lever that scales is a better/richer probe, not a cleverer selection rule.
@@ -93,16 +94,16 @@ pdflatex paper_v2.tex && pdflatex paper_v2.tex   # needs TikZ + pgfplots (TeX Li
 
 ## What's in the testbed (`src/latap_v2.py`)
 
-- `GMM` — K-component isotropic Gaussian mixture with the **exact** posterior-mean denoiser
+- `GMM`: K-component isotropic Gaussian mixture with the **exact** posterior-mean denoiser
   (`denoise_full`), a cheap hard-assignment **probe** (`denoise_probe`), and a tunable
   top-m soft probe (`denoise_probe_topm`) for the richness sweep.
-- `FAM` — 8 predictors: fixed finite-difference Taylor (orders 0–2, horizons 1–2) + online
+- `FAM`: 8 predictors: fixed finite-difference Taylor (orders 0–2, horizons 1–2) + online
   least-squares (deg 2–3, windows 5–6).
-- `run(...)` — accelerated DDIM sampler with selectors `{vanilla, naive, probe, oracle,
+- `run(...)`: accelerated DDIM sampler with selectors `{vanilla, naive, probe, oracle,
   random}`, proxy metrics `{cos, l2, l1}`, family restriction, and a budget/abstaining mode.
-- `measure_proxy(...)` — walks the exact (vanilla) trajectory and records, per token,
+- `measure_proxy(...)`: walks the exact (vanilla) trajectory and records, per token,
   Spearman(proxy-error, true-error) and top-1 pick accuracy for each metric.
-- `energy_distance`, `spearman_axis0`, `boot_ci` — vectorized metrics and bootstrap CIs.
+- `energy_distance`, `spearman_axis0`, `boot_ci`: vectorized metrics and bootstrap CIs.
 
 ## Citation
 
@@ -118,4 +119,4 @@ pdflatex paper_v2.tex && pdflatex paper_v2.tex   # needs TikZ + pgfplots (TeX Li
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT license; see [LICENSE](LICENSE).
