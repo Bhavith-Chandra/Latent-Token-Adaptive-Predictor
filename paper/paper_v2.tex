@@ -9,6 +9,7 @@
 \usepackage{microtype}
 \usepackage{caption}
 \usepackage{pifont}
+\usepackage[super]{cite}   % superscript numeric citations (sorted/compressed by default)
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,shapes.geometric}
 \usepackage[hidelinks]{hyperref}
@@ -57,7 +58,7 @@ Token-Adaptive Prediction on an Exact-Residual Testbed\par}
 \vspace{10pt}
 {\large Bhavith Chandra Challagundla\par}
 \vspace{3pt}
-{\small New York University \;\textbullet\; \href{https://Bhavith-Chandra.github.io}{Bhavith-Chandra.github.io}\par}
+{\small New York University\par}
 \vspace{13pt}
 \begin{minipage}{0.88\textwidth}
 \small
@@ -170,7 +171,7 @@ gap instead of hiding it. All code and numbers are released.}
 \caption{\textbf{Architecture of the exact-residual testbed and the probe-then-select
 mechanism.} Because the data is a Gaussian mixture, the true denoiser output $O_t$ (red,
 expensive) is known in closed form, and a cheap hard-assignment \emph{probe} $h_t$ (blue)
-stands in for a first-layer readout. At a skipped step the predictor bank guesses the cached
+stands in for a first-layer readout. At a skipped step the predictor bank predicts the cached
 outputs and probes; the selector ranks the predictors by a distance on the probe and uses
 the chosen predictor's output. The \emph{oracle} (dashed) ranks by the true output error; it
 cannot be used in practice and marks the best any proxy could do.}
@@ -178,20 +179,20 @@ cannot be used in practice and marks the best any proxy could do.}
 \end{figure*}
 
 \section{Introduction}
-Feature-caching accelerators for diffusion transformers (DiTs)~\cite{peebles2023dit} skip
+Feature-caching accelerators for diffusion transformers (DiTs)\cite{peebles2023dit} skip
 most of the network on most sampling steps and rebuild the missing output from cached
-values~\cite{ma2024deepcache,selvaraju2024fora}. The Token-Adaptive Predictor (TAP) extends
+values\cite{ma2024deepcache,selvaraju2024fora}. The Token-Adaptive Predictor (TAP) extends
 this idea: it keeps a set of cheap predictors and, for each token, picks one by reading the
-first-layer \emph{probe} (the modulated input) and choosing the predictor whose guessed
-probe is closest to the real probe, using a cosine distance. An early single-seed run
+first-layer \emph{probe} (the modulated input) and choosing the predictor whose predicted
+probe is closest to the actual probe, using a cosine distance. An early single-seed run
 suggested three ways to do better: use an $L_2$ distance instead of cosine, use online
 least-squares predictors instead of fixed Taylor ones, and let the probe pick a predictor
 for each token. Here we test these ideas across many seeds and many settings to see which
 ones hold.
 
-Most of the results are negative, and we think they are more useful than one more caching
-trick. Two of the three ideas fail once we use more than one seed, and the third gives only
-a small but repeatable gain. The study also points to the thing that really matters. Because
+Most of the results are negative, and they are more informative than a new caching heuristic
+would be. Two of the three ideas fail once we use more than one seed, and the third gives
+only a small but repeatable gain. The study also points to the thing that really matters. Because
 TAP chooses each token on its own, every predictor costs the same, and there are no shared
 limits, simply picking the best predictor for each token is already the best possible choice
 (\S\ref{sec:theory}); there is nothing to gain by choosing more cleverly. What actually
@@ -211,7 +212,7 @@ suite; Fig.~\ref{fig:flow}) that rules out the online-predictor and per-token id
 shows the $L_2$ gain is small but real.
 \end{itemize}
 
-\section{Findings at a glance}\label{sec:findings}
+\section{Key findings}\label{sec:findings}
 We state the results upfront. Each one uses $12$ seeds (core) or $5$ seeds per cell (sweep)
 with $95\%$ bootstrap CIs, and is re-checked by the $30$-test suite.
 \begin{enumerate}\setlength\itemsep{0.25ex}\leftskip-2pt
@@ -238,34 +239,34 @@ predictor set.
 \item[\textbf{F5}] \textbf{Proxy fidelity depends on how rich the probe is.} As the probe
 goes from a simple hard readout to the exact output, its ranking gets steadily better
 ($0.33$, $0.68$, $0.73$, $1.0$). A trained DiT's learned first-layer probe sits much higher
-on this curve (Spearman ${\approx}0.77$~\cite{challagundla2025probe}), so our simple probe
-gives a lower bound and the $L_2$ gain we measure is on the safe side.
+on this curve (Spearman ${\approx}0.77$\cite{challagundla2025probe}), so our simple probe
+gives a lower bound and the $L_2$ gain we measure is a conservative estimate.
 \item[\textbf{F6}] \textbf{Method note.} The pre-registered $30$-test suite gives
 \textbf{$26$ passes, $0$ failures, and $4$ notes}. Gains that show up with one seed shrink
 or flip with more seeds, so these methods should be judged on trained networks using paired
 fidelity-to-base-model scores.
 \end{enumerate}
 
-\section{Background and related work}
-\textbf{Feature caching.} DeepCache~\cite{ma2024deepcache} and FORA~\cite{selvaraju2024fora}
-reuse features on fixed schedules; TeaCache~\cite{liu2024teacache} modulates reuse by a
-timestep-embedding indicator; ToCa~\cite{zou2024toca} and DiCache~\cite{dicache2025} make
-the decision token- or sample-adaptive; TaylorSeer~\cite{taylorseer2025} replaces
+\section{Related work}
+\textbf{Feature caching.} DeepCache\cite{ma2024deepcache} and FORA\cite{selvaraju2024fora}
+reuse features on fixed schedules; TeaCache\cite{liu2024teacache} modulates reuse by a
+timestep-embedding indicator; ToCa\cite{zou2024toca} and DiCache\cite{dicache2025} make
+the decision token- or sample-adaptive; TaylorSeer\cite{taylorseer2025} replaces
 cache-and-reuse with Taylor \emph{prediction} of features. TAP generalises the predictor to
 a per-token \emph{selected} member of a small family. \textbf{Diffusion samplers.} We use
-the variance-preserving forward process of DDPM~\cite{ho2020ddpm} with deterministic
-DDIM~\cite{song2021ddim} reverse steps; the exact posterior mean follows from
-Tweedie's formula~\cite{efron2011tweedie} and the score view of
-diffusion~\cite{song2019generative,song2021sde}. \textbf{A pitfall in evaluation.} These
+the variance-preserving forward process of DDPM\cite{ho2020ddpm} with deterministic
+DDIM\cite{song2021ddim} reverse steps; the exact posterior mean follows from
+Tweedie's formula\cite{efron2011tweedie} and the score view of
+diffusion\cite{song2019generative,song2021sde}. \textbf{A pitfall in evaluation.} These
 methods are usually compared by output quality at the same compute. One recurring problem,
 which we make explicit and which led to this study, is that comparisons made on simple or
 untrained denoisers may not carry over to trained ones; a companion study shows that the
-probe only becomes reliable through training~\cite{challagundla2025probe}. \textbf{Status of
+probe only becomes reliable through training\cite{challagundla2025probe}. \textbf{Status of
 TAP.} TAP (arXiv:2603.03792) has no released code as of writing. Everything we report about
 TAP comes from our own faithful rebuild of its probe-then-select method, so we test the
 method rather than a specific codebase.
 
-\section{Positioning of Latent-TAP}\label{sec:positioning}
+\subsection{Positioning of Latent-TAP}\label{sec:positioning}
 Training-free accelerators differ along two axes: how fine-grained the caching decision is
 (a global schedule, a per-timestep choice, a per-sample choice, or a per-token choice), and
 how much work the rebuild does (plain feature reuse, reuse with rescaling, Taylor
@@ -305,13 +306,16 @@ distance to the full sampler, so no comparable model speedup or FID is available
 \toprule
 Method & Reconstruction & Granularity & Gating signal & Code & Reported speedup (backbone)\\
 \midrule
-DeepCache~\cite{ma2024deepcache}    & reuse & schedule & fixed & \checkmark & $2.3\times$ (SD-1.5)\\
-FORA~\cite{selvaraju2024fora}       & reuse & schedule & fixed interval & \checkmark & several$\times$ (DiT)$^\dagger$\\
-TeaCache~\cite{liu2024teacache}     & reuse\,+\,rescale & timestep & timestep-emb.\ indicator & \checkmark & $1.5$--$2.1\times$ (FLUX, HunyuanVideo)\\
-DiCache~\cite{dicache2025}          & reuse\,+\,align & sample & shallow online probe & \checkmark & state of the art$^\dagger$ (FLUX, WAN\,2.1)\\
-ToCa~\cite{zou2024toca}             & reuse (token) & token & token-selection scores & \checkmark & $1.5$--$2.4\times$ (PixArt-$\alpha$, OpenSora)\\
-TaylorSeer~\cite{taylorseer2025}    & Taylor forecast & timestep & fixed order & \checkmark & $3.5\times$ latency (FLUX)\\
-TAP~\cite{tap2026}                  & selected family & token & first-layer probe (cosine) & \ding{55} & --- (no public code)\\
+DeepCache\cite{ma2024deepcache}    & reuse & schedule & fixed & \checkmark & $2.3\times$ (SD-1.5)\\
+FORA\cite{selvaraju2024fora}       & reuse & schedule & fixed interval & \checkmark & several$\times$ (DiT)$^\dagger$\\
+\addlinespace[1.5pt]
+TeaCache\cite{liu2024teacache}     & reuse\,+\,rescale & timestep & timestep-emb.\ indicator & \checkmark & $1.5$--$2.1\times$ (FLUX, HunyuanVideo)\\
+TaylorSeer\cite{taylorseer2025}    & Taylor forecast & timestep & fixed order & \checkmark & $3.5\times$ latency (FLUX)\\
+\addlinespace[1.5pt]
+DiCache\cite{dicache2025}          & reuse\,+\,align & sample & shallow online probe & \checkmark & state of the art$^\dagger$ (FLUX, WAN\,2.1)\\
+\addlinespace[1.5pt]
+ToCa\cite{zou2024toca}             & reuse (token) & token & token-selection scores & \checkmark & $1.5$--$2.4\times$ (PixArt-$\alpha$, OpenSora)\\
+TAP\cite{tap2026}                  & selected family & token & first-layer probe (cosine) & \ding{55} & --- (no public code)\\
 \rowcolor{black!8}
 \textbf{Latent-TAP} (this work)     & selected family & token & first-layer probe ($L_2$/cos) & \checkmark & analytic testbed$^\ddagger$\\
 \bottomrule
@@ -344,7 +348,7 @@ $\hat\imath=\arg\min_i d_\mu(\hat h_i,h_t)$ for proxy $\mu\in\{\cos,L_2,L_1\}$ a
 $\hat O_{\hat\imath}$. \textbf{Oracle} instead minimises the true error $\|\hat
 O_i-O_t\|_2$. \textbf{Metrics.} (a) the rank correlation between proxy error and true error
 across the predictor family, which tells us whether the proxy puts the predictors in the
-right order; and (b) the energy distance~\cite{szekely2013energy} between the final samples
+right order; and (b) the energy distance\cite{szekely2013energy} between the final samples
 of the accelerated and full samplers, which tells us how close the two output distributions
 are. We use $12$ seeds for the core study and $5$ per regime cell, with bootstrap $95\%$
 confidence intervals throughout.
@@ -453,7 +457,8 @@ energy: oracle & 0.0112 & $-0.005\,(-.007,-.003)$\\
 \end{tabular}
 \end{table}
 
-\section{Core results}\label{sec:core}
+\section{Experiments}\label{sec:exp}
+\subsection{Core results}\label{sec:core}
 Table~\ref{tab:core} shows the core study. The $L_2$ distance ranks predictors better than
 cosine and picks the best one more often; the gain is real (the confidence interval does not
 include zero) but small, a $5\%$ relative gain in Spearman, not the roughly fourfold gain
@@ -478,7 +483,7 @@ probe would sit higher along this axis.}
 \label{fig:v2}
 \end{figure*}
 
-\section{Sensitivity across regimes}\label{sec:sweep}
+\subsection{Sensitivity across regimes}\label{sec:sweep}
 We vary skipping (cache stride $2$ to $8$), dimension ($2$ to $32$), how far apart the
 mixture components are, the noise scale, and the number of components $K$, giving $21$
 settings with $5$ seeds each (Fig.~\ref{fig:v2}). \textbf{The $L_2$ gain shows up everywhere
@@ -496,10 +501,10 @@ settings are exactly where a better probe would help most. \textbf{What matters 
 fidelity.} Giving the probe more information (a richer top-$m$ soft readout) makes its
 ranking steadily better, from $0.33$ to $0.68$, $0.73$, and $1.0$ (Fig.~\ref{fig:v2}d). A
 trained DiT's learned first-layer probe sits much higher on this curve (our companion study
-measures Spearman ${\approx}0.77$~\cite{challagundla2025probe}), so our testbed gives a lower
-bound and the $L_2$ gain we measure is on the safe side.
+measures Spearman ${\approx}0.77$\cite{challagundla2025probe}), so our testbed gives a lower
+bound and the $L_2$ gain we measure is a conservative estimate.
 
-\section{Adversarial test suite}
+\subsection{Adversarial test suite}
 We pre-registered $30$ tests, each meant to break a claim: correctness checks on the testbed
 (exact-denoiser limits, $\mathrm{energy}(\text{full},\text{full}){=}0$, and no leakage of the
 true error into the choice), the multi-seed core comparisons, the $21$-setting crossovers,
@@ -523,7 +528,7 @@ tuning the method into measuring the probe, which our exact testbed makes easy.
 Our denoiser is a simple Gaussian mixture, not a trained network, and the probe is a shallow
 hard readout. These choices let us compute the true answer, but they also make the probe a
 weaker ranker than a trained DiT's learned first layer (Fig.~\ref{fig:v2}d
-and~\cite{challagundla2025probe}). The energy-distance values depend on the testbed, so all
+and\cite{challagundla2025probe}). The energy-distance values depend on the testbed, so all
 our conclusions use paired comparisons within the same setting. TAP has no public code, so we
 test the method, not a specific implementation. Whether the small $L_2$ gain and the
 aggressive-skipping probe benefit grow or shrink on large latent DiTs is still open and needs
